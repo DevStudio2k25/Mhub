@@ -80,24 +80,24 @@ export default function MentorDashboard() {
   const [pendingQueries, setPendingQueries] = useState<Query[]>([])
   const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
-  const [menteesWithNames, setMenteesWithNames] = useState<{[key: string]: string}>({})
+  const [menteesWithNames, setMenteesWithNames] = useState<{ [key: string]: string }>({})
 
   // Save admin credentials to Firebase
   const saveAdminCredentials = async (credentials: { email: string; password: string }) => {
     if (!userData?.uid) return
-    
+
     try {
       setIsSaving(true)
       const credentialsRef = ref(db, `users/${userData.uid}/adminCredentials`)
       await set(credentialsRef, credentials)
-      
+
       toast({
         title: "Credentials saved",
         description: "Your admin account credentials have been saved successfully.",
       })
       setHasSavedCredentials(true)
       setIsEditing(false)
-      
+
       // Reload credentials to update the display
       await loadAdminCredentials()
     } catch (error) {
@@ -114,7 +114,7 @@ export default function MentorDashboard() {
 
   // Load mentee names for display
   const loadMenteeNames = async (menteeIds: string[]) => {
-    const names: {[key: string]: string} = {}
+    const names: { [key: string]: string } = {}
     await Promise.all(
       menteeIds.map(async (id) => {
         const menteeRef = ref(db, `users/${id}`)
@@ -134,7 +134,7 @@ export default function MentorDashboard() {
     try {
       const mentorRef = ref(db, `users/${userData.uid}`)
       const snapshot = await get(mentorRef)
-      
+
       if (snapshot.exists()) {
         const mentorData = snapshot.val()
         if (mentorData.adminCredentials) {
@@ -157,11 +157,11 @@ export default function MentorDashboard() {
     const checkAdminAccess = async () => {
       await loadAdminCredentials()
       if (!userData?.uid) return
-      
+
       try {
         const mentorRef = ref(db, `users/${userData.uid}`)
         const mentorSnapshot = await get(mentorRef)
-        
+
         if (mentorSnapshot.exists()) {
           const mentorData = mentorSnapshot.val()
           setHasAdminAccess(mentorData.hasAdminAccess || false)
@@ -170,7 +170,7 @@ export default function MentorDashboard() {
         console.error('Error checking admin access:', error)
       }
     }
-    
+
     checkAdminAccess()
   }, [userData?.uid])
 
@@ -178,18 +178,18 @@ export default function MentorDashboard() {
   useEffect(() => {
     const loadAdminAccount = async () => {
       if (!userData?.uid || !hasAdminAccess) return
-      
+
       try {
         const mentorRef = ref(db, `users/${userData.uid}`)
         const mentorSnapshot = await get(mentorRef)
-        
+
         if (mentorSnapshot.exists()) {
           const mentorData = mentorSnapshot.val()
           if (mentorData.adminAccountId) {
             // Get the admin account details
             const adminRef = ref(db, `users/${mentorData.adminAccountId}`)
             const adminSnapshot = await get(adminRef)
-            
+
             if (adminSnapshot.exists()) {
               const adminData = adminSnapshot.val()
               // Get admin credentials from mentor data
@@ -208,7 +208,7 @@ export default function MentorDashboard() {
         console.error('Error loading admin account:', error)
       }
     }
-    
+
     loadAdminAccount()
   }, [userData?.uid, hasAdminAccess])
 
@@ -217,9 +217,9 @@ export default function MentorDashboard() {
     const loadData = async () => {
       if (!userData?.uid) return
       setLoading(true)
-      
+
       try {
-        
+
         // Load mentees
         const menteesRef = ref(db, `mentors/${userData.uid}/mentees`)
         const menteesSnapshot = await get(menteesRef)
@@ -235,11 +235,11 @@ export default function MentorDashboard() {
           })
           const menteeData = (await Promise.all(menteePromises)).filter(Boolean) as Mentee[]
           setMentees(menteeData)
-          
+
           // Load mentee names for display
           await loadMenteeNames(menteeIds)
         }
-        
+
         // Load classes
         const classesRef = ref(db, `mentors/${userData.uid}/classes`)
         const classesSnapshot = await get(classesRef)
@@ -250,7 +250,7 @@ export default function MentorDashboard() {
           }))
           setClasses(classData)
         }
-        
+
         // Load pending reports
         const reportsRef = ref(db, `mentors/${userData.uid}/reports`)
         const reportsSnapshot = await get(reportsRef)
@@ -260,7 +260,7 @@ export default function MentorDashboard() {
             .filter(report => report.status === 'pending')
           setPendingReports(pendingReportData)
         }
-        
+
         // Load pending queries
         const queriesRef = ref(db, `mentors/${userData.uid}/queries`)
         const queriesSnapshot = await get(queriesRef)
@@ -283,14 +283,14 @@ export default function MentorDashboard() {
             .sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime())
           setUpcomingSessions(sessionData)
         }
-        
+
         setLoading(false)
       } catch (error) {
         console.error("Error loading data:", error)
         setLoading(false)
       }
     }
-    
+
     if (userData) {
       loadData()
     }
@@ -306,7 +306,7 @@ export default function MentorDashboard() {
         const usersSnapshot = await get(usersRef)
 
         const menteesData: Mentee[] = []
-        const menteeNames: {[key: string]: string} = {}
+        const menteeNames: { [key: string]: string } = {}
 
         if (usersSnapshot.exists()) {
           const usersData = usersSnapshot.val()
@@ -338,7 +338,7 @@ export default function MentorDashboard() {
             if (data.mentorId === userData.uid) {
               // Count mentees in this class
               const menteeCount = menteesData.filter(mentee => mentee.classId === id).length
-              
+
               classesData.push({
                 id,
                 ...data,
@@ -428,7 +428,7 @@ export default function MentorDashboard() {
   }
 
 
-  
+
   const loginAsAdmin = async (credentials: { email: string; password: string }) => {
     if (!credentials?.email || !credentials?.password) {
       toast({
@@ -438,21 +438,21 @@ export default function MentorDashboard() {
       })
       return
     }
-    
+
     try {
       setIsLoggingIn(true)
-      
+
       // Sign out current user (mentor)
       await signOut(auth)
-      
+
       // Sign in as admin
       await signInWithEmailAndPassword(auth, credentials.email, credentials.password)
-      
+
       toast({
         title: "Login successful",
         description: "You are now logged in as an admin.",
       })
-      
+
       // Redirect to admin dashboard
       router.push("/admin/dashboard")
     } catch (error) {
@@ -462,7 +462,7 @@ export default function MentorDashboard() {
         description: "Invalid credentials or account does not exist.",
         variant: "destructive"
       })
-      
+
       // Try to sign back in as mentor if admin login fails
       try {
         window.location.reload()
@@ -476,21 +476,21 @@ export default function MentorDashboard() {
 
   const handleSwitchToAdmin = async () => {
     if (!adminAccount) return;
-    
+
     try {
       setIsLoggingIn(true);
-      
+
       // Sign out from mentor account
       await signOut(auth);
-      
+
       // Sign in with admin account
       await signInWithEmailAndPassword(auth, adminAccount.email, adminAccount.password);
-      
+
       toast({
         title: "Switched to admin account",
         description: "You are now logged in as an admin."
       });
-      
+
       // Redirect to admin dashboard
       router.push("/admin/dashboard");
     } catch (error) {
@@ -500,7 +500,7 @@ export default function MentorDashboard() {
         description: "Failed to switch to admin account. Please try again.",
         variant: "destructive"
       });
-      
+
       // Try to sign back in as mentor if admin login fails
       try {
         window.location.reload();
@@ -514,16 +514,16 @@ export default function MentorDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-8">
-        <div className="flex justify-between items-start mb-8">
+      <div className="container mx-auto py-4 sm:py-8 px-4 sm:px-6">
+        <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-6 sm:mb-8">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Welcome, {userData?.name}</h1>
-            <p className="text-muted-foreground">Here's an overview of your mentoring activities</p>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">Welcome, {userData?.name}</h1>
+            <p className="text-muted-foreground text-sm sm:text-base">Here's an overview of your mentoring activities</p>
           </div>
-          
+
           {/* Admin Account Switch Button for admin+mentor role */}
           {userData?.role === "admin+mentor" && adminAccount && (
-            <Button 
+            <Button
               variant="outline"
               className="flex items-center gap-2 bg-amber-50 border-amber-200 hover:bg-amber-100"
               onClick={handleSwitchToAdmin}
@@ -551,13 +551,13 @@ export default function MentorDashboard() {
         ) : (
           <>
             {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8">
               <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Total Mentees</p>
-                      <p className="text-3xl font-bold text-amber-600">{mentees.length}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-amber-600">{mentees.length}</p>
                     </div>
                     <div className="bg-amber-100 p-3 rounded-full">
                       <Users className="h-6 w-6 text-amber-600" />
@@ -572,11 +572,11 @@ export default function MentorDashboard() {
               </Card>
 
               <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Total Classes</p>
-                      <p className="text-3xl font-bold text-amber-600">{classes.length}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-amber-600">{classes.length}</p>
                     </div>
                     <div className="bg-amber-100 p-3 rounded-full">
                       <BookOpen className="h-6 w-6 text-amber-600" />
@@ -591,11 +591,11 @@ export default function MentorDashboard() {
               </Card>
 
               <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Pending Reports</p>
-                      <p className="text-3xl font-bold text-amber-600">{pendingReports.length}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-amber-600">{pendingReports.length}</p>
                     </div>
                     <div className="bg-amber-100 p-3 rounded-full">
                       <FileText className="h-6 w-6 text-amber-600" />
@@ -610,11 +610,11 @@ export default function MentorDashboard() {
               </Card>
 
               <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex justify-between items-center">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Pending Queries</p>
-                      <p className="text-3xl font-bold text-amber-600">{pendingQueries.length}</p>
+                      <p className="text-2xl sm:text-3xl font-bold text-amber-600">{pendingQueries.length}</p>
                     </div>
                     <div className="bg-amber-100 p-3 rounded-full">
                       <MessageSquare className="h-6 w-6 text-amber-600" />
@@ -652,7 +652,7 @@ export default function MentorDashboard() {
                       )}
                     </div>
                     <CardDescription>
-                      {adminAccount 
+                      {adminAccount
                         ? "Use these credentials to access your admin account"
                         : "Set up your admin account credentials"}
                     </CardDescription>
@@ -663,20 +663,20 @@ export default function MentorDashboard() {
                         <div className="grid gap-4">
                           <div className="space-y-2">
                             <Label>Admin Email</Label>
-                            <Input 
-                              type="email" 
+                            <Input
+                              type="email"
                               value={adminAccount?.email || ''}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdminAccount(prev => ({...prev!, email: e.target.value}))}
+                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdminAccount(prev => ({ ...prev!, email: e.target.value }))}
                               placeholder="Enter admin email"
                             />
                           </div>
                           <div className="space-y-2">
                             <Label>Admin Password</Label>
                             <div className="relative">
-                              <Input 
+                              <Input
                                 type={showPassword ? "text" : "password"}
                                 value={adminAccount?.password || ''}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdminAccount(prev => ({...prev!, password: e.target.value}))}
+                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdminAccount(prev => ({ ...prev!, password: e.target.value }))}
                                 placeholder="Enter admin password"
                                 className="pr-10"
                               />
@@ -769,7 +769,7 @@ export default function MentorDashboard() {
             )}
 
             {/* Classes and Mentees */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-8">
               <div className="lg:col-span-2">
                 <Card className="border-0 shadow-lg rounded-xl overflow-hidden h-full">
                   <CardHeader className="bg-gradient-to-r from-amber-500/20 to-amber-500/5">
@@ -786,34 +786,67 @@ export default function MentorDashboard() {
                       </Button>
                     </div>
                   </CardHeader>
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-6">
                     {classes.length > 0 ? (
                       <div className="space-y-4">
                         {classes.map((classInfo) => (
-                          <div key={classInfo.id} className="border border-amber-100 rounded-xl p-4 hover:bg-amber-50 transition-colors">
-                            <div className="flex justify-between items-start mb-2">
-                              <h3 className="font-medium text-lg">{classInfo.name}</h3>
-                              <span className="bg-amber-100 text-amber-700 text-xs px-2 py-1 rounded-full">
-                                {classInfo.year}
-                              </span>
+                          <div key={classInfo.id} className="border border-amber-200 rounded-xl p-4 hover:bg-amber-50 transition-colors">
+                            {/* Header - Mobile: Stack, Desktop: Side by side */}
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
+                              <div className="flex-1">
+                                <h3 className="font-semibold text-lg sm:text-xl text-gray-800 mb-2">{classInfo.name}</h3>
+
+                                {/* Class Details - Stack vertically on mobile */}
+                                <div className="space-y-2 sm:space-y-1">
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <GraduationCap className="h-4 w-4 text-amber-600" />
+                                    <span>Admission Year: {classInfo.year}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <BookOpen className="h-4 w-4 text-amber-600" />
+                                    <span>Section: {classInfo.section}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                                    <Users className="h-4 w-4 text-amber-600" />
+                                    <span>{classInfo.menteeCount || 0} Students Enrolled</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Student Count Badge */}
+                              <div className="self-start">
+                                <span className="bg-amber-500 text-white text-xs font-medium px-3 py-1.5 rounded-full">
+                                  {classInfo.menteeCount || 0} Students
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                              <span>Section: {classInfo.section}</span>
-                              <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                              <span>{classInfo.menteeCount || 0} mentees</span>
-                            </div>
-                            <p className="text-sm text-gray-600 mb-3 line-clamp-2">{classInfo.description}</p>
-                            <div className="flex justify-between items-center">
-                              <Button variant="outline" size="sm" className="border-amber-200 hover:bg-amber-50 text-amber-700" asChild>
+
+                            {/* Description */}
+                            <p className="text-sm text-gray-700 mb-4 line-clamp-2 leading-relaxed">
+                              {classInfo.description}
+                            </p>
+
+                            {/* Action Buttons - Stack on mobile */}
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="flex-1 h-10 sm:h-8 border-amber-300 bg-white hover:bg-amber-50 text-amber-700 hover:text-amber-800"
+                                asChild
+                              >
                                 <Link href={`/mentor/mentees?classId=${classInfo.id}`}>
-                                  <Users className="h-3 w-3 mr-1" />
-                                  View Mentees
+                                  <Users className="h-4 w-4 mr-2" />
+                                  View Students
                                 </Link>
                               </Button>
-                              <Button variant="outline" size="sm" className="border-amber-200 hover:bg-amber-50 text-amber-700" asChild>
+                              <Button
+                                size="sm"
+                                className="flex-1 h-10 sm:h-8 bg-amber-500 hover:bg-amber-600 text-white"
+                                asChild
+                              >
                                 <Link href={`/mentor/mentees?classId=${classInfo.id}`}>
-                                  <UserPlus className="h-3 w-3 mr-1" />
-                                  Add Mentee
+                                  <UserPlus className="h-4 w-4 mr-2" />
+                                  Add Student
                                 </Link>
                               </Button>
                             </div>
@@ -821,12 +854,19 @@ export default function MentorDashboard() {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-10">
-                        <BookOpen className="h-12 w-12 text-amber-300 mx-auto mb-4" />
-                        <p className="text-lg font-medium text-gray-800 mb-2">No classes created yet</p>
-                        <p className="text-sm text-muted-foreground mb-4">Create classes to organize your mentees</p>
-                        <Button className="bg-amber-500 hover:bg-amber-600" asChild>
-                          <Link href="/mentor/classes">Create Your First Class</Link>
+                      <div className="text-center py-8 sm:py-12">
+                        <div className="bg-amber-100 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                          <BookOpen className="h-8 w-8 sm:h-10 sm:w-10 text-amber-600" />
+                        </div>
+                        <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">No classes created yet</h3>
+                        <p className="text-sm text-gray-600 mb-4 sm:mb-6 max-w-sm mx-auto px-4">
+                          Start by creating your first class to organize and manage your students effectively
+                        </p>
+                        <Button className="bg-amber-500 hover:bg-amber-600 text-white font-medium px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg" asChild>
+                          <Link href="/mentor/classes">
+                            <GraduationCap className="h-4 w-4 mr-2" />
+                            Create Your First Class
+                          </Link>
                         </Button>
                       </div>
                     )}
@@ -848,9 +888,9 @@ export default function MentorDashboard() {
                         <div key={mentee.uid} className="flex items-center gap-3">
                           {mentee.profileImage ? (
                             <div className="relative w-10 h-10 rounded-full overflow-hidden">
-                              <Image 
-                                src={mentee.profileImage} 
-                                alt={mentee.name} 
+                              <Image
+                                src={mentee.profileImage}
+                                alt={mentee.name}
                                 fill
                                 className="object-cover"
                               />

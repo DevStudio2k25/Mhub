@@ -536,17 +536,17 @@ function MentorMenteesContent() {
   return (
     <DashboardLayout>
       <Toaster richColors position="top-center" />
-      <div className="space-y-8">
+      <div className="space-y-6 sm:space-y-8 px-4 sm:px-0">
         <div>
-          <h1 className="text-4xl font-bold text-gray-800">My Mentees</h1>
-          <p className="text-muted-foreground text-lg mt-2">View and manage your assigned mentees</p>
+          <h1 className="text-2xl sm:text-4xl font-bold text-gray-800">My Mentees</h1>
+          <p className="text-muted-foreground text-base sm:text-lg mt-2">View and manage your assigned mentees</p>
         </div>
 
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-2 w-full sm:w-auto">
             <Button 
               variant="outline" 
-              className="border-amber-200 hover:bg-amber-50 text-amber-700"
+              className="border-amber-200 hover:bg-amber-50 text-amber-700 w-full sm:w-auto"
               asChild
             >
               <Link href="/mentor/classes">
@@ -555,13 +555,13 @@ function MentorMenteesContent() {
               </Link>
             </Button>
             
-            <div className="flex items-center gap-2 ml-4">
-              <Filter className="h-4 w-4 text-gray-500" />
+            <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-4">
+              <Filter className="h-4 w-4 text-gray-500 flex-shrink-0" />
               <Select 
                 value={selectedClassId || "all"} 
                 onValueChange={(value) => setSelectedClassId(value === "all" ? "" : value)}
               >
-                <SelectTrigger className="w-[250px] border-amber-200 focus:ring-amber-500">
+                <SelectTrigger className="w-full sm:w-[250px] border-amber-200 focus:ring-amber-500">
                   <SelectValue placeholder="Filter by class" />
                 </SelectTrigger>
                 <SelectContent>
@@ -615,7 +615,7 @@ function MentorMenteesContent() {
             }
           }}>
             <DialogTrigger asChild>
-              <Button className="flex items-center gap-2">
+              <Button className="flex items-center gap-2 w-full sm:w-auto">
                 <UserPlus className="h-4 w-4" />
                 <span>Add Mentee</span>
               </Button>
@@ -926,10 +926,10 @@ function MentorMenteesContent() {
 
         {/* Class filter indicator */}
         {selectedClassId && (
-          <div className="bg-amber-50 p-4 rounded-lg border border-amber-200 mb-6">
-            <p className="text-amber-800 font-medium flex items-center">
-              <Filter className="h-4 w-4 mr-2" />
-              Showing mentees from: {getSelectedClassName()}
+          <div className="bg-amber-50 p-3 sm:p-4 rounded-lg border border-amber-200 mb-6">
+            <p className="text-amber-800 font-medium flex items-center text-sm sm:text-base">
+              <Filter className="h-4 w-4 mr-2 flex-shrink-0" />
+              <span className="break-words">Showing mentees from: {getSelectedClassName()}</span>
             </p>
           </div>
         )}
@@ -940,26 +940,26 @@ function MentorMenteesContent() {
           </div>
         ) : filteredMentees.length > 0 ? (
           <div>
-            <div className="flex justify-between items-center mb-4 bg-amber-50 p-4 rounded-lg">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 mb-4 bg-amber-50 p-3 sm:p-4 rounded-lg">
               <div>
-                <h2 className="text-xl font-semibold text-gray-800">{getSelectedClassName()}</h2>
+                <h2 className="text-lg sm:text-xl font-semibold text-gray-800 break-words">{getSelectedClassName()}</h2>
                 <p className="text-sm text-gray-600 mt-1">{filteredMentees.length} mentees</p>
               </div>
               <Button
                 variant="outline"
                 onClick={() => exportMenteeDetails(selectedClassId || '')}
-                className="flex items-center gap-2 border-amber-200 hover:bg-amber-100 text-amber-700"
+                className="flex items-center gap-2 border-amber-200 hover:bg-amber-100 text-amber-700 w-full sm:w-auto text-sm"
               >
                 <Download className="h-4 w-4" />
-                Export Class Details
+                <span className="sm:inline">Export Class Details</span>
               </Button>
             </div>
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
               {filteredMentees.map((mentee) => (
                 <Card key={mentee.uid} className="border-0 shadow-lg rounded-xl overflow-hidden group hover:ring-2 hover:ring-amber-200 transition-all">
-                  <CardHeader className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-4 flex flex-row items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-full bg-white p-1 relative">
+                  <CardHeader className="bg-gradient-to-r from-amber-500 to-amber-600 text-white p-3 sm:p-4 flex flex-row items-center justify-between">
+                    <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+                      <div className="h-10 w-10 sm:h-12 sm:w-12 rounded-full bg-white p-1 relative flex-shrink-0">
                         {mentee.photoURL ? (
                           <img 
                             src={mentee.photoURL} 
@@ -968,36 +968,36 @@ function MentorMenteesContent() {
                           />
                         ) : (
                           <div className="h-full w-full rounded-full bg-amber-100 flex items-center justify-center">
-                            <User className="h-6 w-6 text-amber-600" />
+                            <User className="h-5 w-5 sm:h-6 sm:w-6 text-amber-600" />
                           </div>
                         )}
                         {mentee.hasEdited && (
-                          <div className="absolute -top-1 -right-1 h-4 w-4 bg-green-500 rounded-full flex items-center justify-center" title="Profile Updated">
-                            <Check className="h-3 w-3 text-white" />
+                          <div className="absolute -top-1 -right-1 h-3 w-3 sm:h-4 sm:w-4 bg-green-500 rounded-full flex items-center justify-center" title="Profile Updated">
+                            <Check className="h-2 w-2 sm:h-3 sm:w-3 text-white" />
                           </div>
                         )}
                       </div>
-                      <div>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          {mentee.name}
+                      <div className="min-w-0 flex-1">
+                        <CardTitle className="text-base sm:text-lg flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <span className="truncate">{mentee.name}</span>
                           {!mentee.hasEdited && (
-                            <span className="text-xs bg-amber-400/20 px-2 py-0.5 rounded-full">
+                            <span className="text-xs bg-amber-400/20 px-2 py-0.5 rounded-full self-start sm:self-auto">
                               Not Updated
                             </span>
                           )}
                         </CardTitle>
-                        <p className="text-sm text-amber-100">{mentee.email}</p>
+                        <p className="text-xs sm:text-sm text-amber-100 truncate">{mentee.email}</p>
                       </div>
                     </div>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="text-white hover:bg-amber-400/20"
+                      className="text-white hover:bg-amber-400/20 flex-shrink-0 h-8 w-8 sm:h-10 sm:w-10"
                       onClick={() => toggleCardExpansion(mentee.uid)}
                     >
                       <ChevronDown
                         className={cn(
-                          "h-6 w-6 transform transition-transform",
+                          "h-5 w-5 sm:h-6 sm:w-6 transform transition-transform",
                           expandedCards[mentee.uid] ? "rotate-180" : ""
                         )}
                       />
@@ -1012,23 +1012,23 @@ function MentorMenteesContent() {
                         transition={{ duration: 0.2 }}
                         className="overflow-hidden"
                       >
-                        <div className="p-4 space-y-4">
-                          <div className="space-y-3">
-                            <div className="bg-amber-50 p-3 rounded-lg">
-                              <p className="text-sm text-amber-600 mb-1">Enrollment No.</p>
-                              <p className="font-medium break-all">{mentee.enrollmentNo}</p>
+                        <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+                          <div className="space-y-2 sm:space-y-3">
+                            <div className="bg-amber-50 p-3 sm:p-3 rounded-lg">
+                              <p className="text-xs sm:text-sm text-amber-600 mb-1">Enrollment No.</p>
+                              <p className="font-medium text-sm sm:text-base break-all">{mentee.enrollmentNo}</p>
                             </div>
-                            <div className="bg-amber-50 p-3 rounded-lg">
-                              <p className="text-sm text-amber-600 mb-1">Parent Mobile</p>
-                              <p className="font-medium">{mentee.parentMobile || "Not updated"}</p>
+                            <div className="bg-amber-50 p-3 sm:p-3 rounded-lg">
+                              <p className="text-xs sm:text-sm text-amber-600 mb-1">Parent Mobile</p>
+                              <p className="font-medium text-sm sm:text-base">{mentee.parentMobile || "Not updated"}</p>
                             </div>
-                            <div className="bg-amber-50 p-3 rounded-lg">
-                              <p className="text-sm text-amber-600 mb-1">Class Details</p>
-                              <p className="font-medium">{mentee.class} - {mentee.year} ({mentee.section})</p>
+                            <div className="bg-amber-50 p-3 sm:p-3 rounded-lg">
+                              <p className="text-xs sm:text-sm text-amber-600 mb-1">Class Details</p>
+                              <p className="font-medium text-sm sm:text-base break-words">{mentee.class} - {mentee.year} ({mentee.section})</p>
                             </div>
-                            <div className="bg-amber-50 p-3 rounded-lg">
-                              <p className="text-sm text-amber-600 mb-1">Profile Status</p>
-                              <p className="font-medium flex items-center gap-2">
+                            <div className="bg-amber-50 p-3 sm:p-3 rounded-lg">
+                              <p className="text-xs sm:text-sm text-amber-600 mb-1">Profile Status</p>
+                              <p className="font-medium text-sm sm:text-base flex items-center gap-2">
                                 {mentee.hasEdited ? (
                                   <>
                                     <span className="text-green-600">Updated</span>
@@ -1043,11 +1043,11 @@ function MentorMenteesContent() {
                               </p>
                             </div>
                           </div>
-                          <div className="mt-4">
+                          <div className="mt-3 sm:mt-4">
                             <Button
                               variant="outline"
                               size="sm"
-                              className="w-full justify-center border-amber-200 hover:bg-amber-50 text-amber-700"
+                              className="w-full h-10 sm:h-8 justify-center border-amber-200 hover:bg-amber-50 text-amber-700"
                               asChild
                             >
                               <Link href={`/mentor/edit-mentee/${mentee.uid}`} className="flex items-center">
@@ -1066,12 +1066,12 @@ function MentorMenteesContent() {
           </div>
         ) : (
           <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-            <CardContent className="flex flex-col items-center justify-center p-8">
-              <User className="h-16 w-16 text-amber-300 mb-4" />
+            <CardContent className="flex flex-col items-center justify-center p-6 sm:p-8">
+              <User className="h-12 w-12 sm:h-16 sm:w-16 text-amber-300 mb-4" />
               {classes.length > 0 ? (
                 <>
-                  <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-xl font-semibold text-gray-800">
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-0 mb-4 w-full">
+                    <h2 className="text-lg sm:text-xl font-semibold text-gray-800 text-center sm:text-left break-words">
                       {getSelectedClassName()}
                     </h2>
                     {selectedClassId && (
@@ -1079,17 +1079,17 @@ function MentorMenteesContent() {
                         variant="outline"
                         size="sm"
                         onClick={() => exportMenteeDetails(selectedClassId)}
-                        className="flex items-center gap-2 border-amber-200 hover:bg-amber-50 text-amber-700"
+                        className="flex items-center gap-2 border-amber-200 hover:bg-amber-50 text-amber-700 w-full sm:w-auto"
                       >
                         <Download className="h-4 w-4" />
                         Export Class Details
                       </Button>
                     )}
                   </div>
-                  <p className="text-xl font-medium text-gray-800 mb-2">
+                  <p className="text-lg sm:text-xl font-medium text-gray-800 mb-2 text-center">
                     {selectedClassId ? "No mentees in this class" : "No mentees assigned yet"}
                   </p>
-                  <p className="text-sm text-muted-foreground text-center mb-4">
+                  <p className="text-sm text-muted-foreground text-center mb-4 px-4">
                     {selectedClassId 
                       ? "This class doesn't have any mentees yet. Add mentees to this class."
                       : "You don't have any mentees assigned to you at the moment"}
@@ -1097,12 +1097,12 @@ function MentorMenteesContent() {
                 </>
               ) : (
                 <>
-                  <p className="text-xl font-medium text-gray-800 mb-2">No classes created yet</p>
-                  <p className="text-sm text-muted-foreground text-center mb-4">
+                  <p className="text-lg sm:text-xl font-medium text-gray-800 mb-2 text-center">No classes created yet</p>
+                  <p className="text-sm text-muted-foreground text-center mb-4 px-4">
                     Create classes first to organize your mentees
                   </p>
                   <Button 
-                    className="bg-amber-500 hover:bg-amber-600 mb-2"
+                    className="bg-amber-500 hover:bg-amber-600 mb-2 w-full sm:w-auto"
                     asChild
                   >
                     <Link href="/mentor/classes">
@@ -1114,7 +1114,7 @@ function MentorMenteesContent() {
               )}
               {classes.length > 0 && (
                 <Button 
-                  className="bg-amber-500 hover:bg-amber-600"
+                  className="bg-amber-500 hover:bg-amber-600 w-full sm:w-auto"
                   onClick={() => setIsDialogOpen(true)}
                 >
                   <UserPlus className="h-4 w-4 mr-2" />

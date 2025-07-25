@@ -55,7 +55,7 @@ export default function ManageProfiles() {
       const classesRef = ref(db, "classes")
       const classesSnapshot = await get(classesRef)
       const classesData: Class[] = []
-      
+
       if (classesSnapshot.exists()) {
         Object.entries(classesSnapshot.val()).forEach(([id, data]: [string, any]) => {
           if (data.mentorId === userData.uid) {
@@ -117,7 +117,7 @@ export default function ManageProfiles() {
       await Promise.all(
         Array.from(selectedMentees).map(async (menteeId) => {
           const updates: Record<string, any> = {};
-          
+
           const profileEditData = {
             allowedAt: now,
             expiresAt,
@@ -127,7 +127,7 @@ export default function ManageProfiles() {
           // Reset hasEdited to false when allowing new edits
           updates[`users/${menteeId}/hasEdited`] = false;
           updates[`users/${menteeId}/profileEditAllowed`] = profileEditData;
-          
+
           // Also update in mentees collection to ensure data consistency
           updates[`mentees/${menteeId}/hasEdited`] = false;
           updates[`mentees/${menteeId}/profileEditAllowed`] = profileEditData;
@@ -150,8 +150,8 @@ export default function ManageProfiles() {
     return mentees.filter(mentee => {
       const matchesClass = selectedClassId === "all" || mentee.classId === selectedClassId;
       const searchTerm = searchQuery.toLowerCase().trim();
-      const matchesSearch = !searchTerm || 
-        mentee.name.toLowerCase().includes(searchTerm) || 
+      const matchesSearch = !searchTerm ||
+        mentee.name.toLowerCase().includes(searchTerm) ||
         (mentee.enrollmentNo?.toLowerCase() || "").includes(searchTerm);
       return matchesClass && matchesSearch;
     });
@@ -164,26 +164,26 @@ export default function ManageProfiles() {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-6 space-y-6">
+      <div className="container mx-auto py-4 sm:py-6 px-4 sm:px-6 space-y-4 sm:space-y-6">
         <Card>
-          <CardHeader>
-            <CardTitle>Manage Profile Edit Permissions</CardTitle>
+          <CardHeader className="pb-4 sm:pb-6">
+            <CardTitle className="text-xl sm:text-2xl">Manage Profile Edit Permissions</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-4">
+          <CardContent className="px-4 sm:px-6">
+            <div className="space-y-4 sm:space-y-6">
+              <div className="flex flex-col gap-3 sm:flex-row sm:gap-4">
                 <div className="flex-1 relative">
                   <Input
                     type="text"
                     placeholder="Search by name or enrollment no"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-10 sm:h-9"
                   />
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                 </div>
                 <Select value={selectedClassId} onValueChange={setSelectedClassId}>
-                  <SelectTrigger className="w-[240px]">
+                  <SelectTrigger className="w-full sm:w-[240px] h-10 sm:h-9">
                     <SelectValue placeholder="Filter by class" />
                   </SelectTrigger>
                   <SelectContent>
@@ -196,41 +196,41 @@ export default function ManageProfiles() {
                   </SelectContent>
                 </Select>
 
-                <Button 
+                <Button
                   onClick={allowProfileEdits}
                   disabled={selectedMentees.size === 0}
-                  className="bg-amber-500 hover:bg-amber-600"
+                  className="bg-amber-500 hover:bg-amber-600 h-10 sm:h-9 w-full sm:w-auto"
                 >
                   Allow Profile Edits (24h)
                 </Button>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
                 {getFilteredMentees().map(mentee => (
-                  <Card key={mentee.uid} className={`relative ${
-                    isProfileEditAllowed(mentee) ? 'border-green-200 bg-green-50' : ''
-                  }`}>
-                    <CardContent className="pt-6">
-                      <div className="absolute top-4 right-4">
+                  <Card key={mentee.uid} className={`relative min-h-[140px] ${isProfileEditAllowed(mentee) ? 'border-green-200 bg-green-50' : ''
+                    }`}>
+                    <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6 pb-4 sm:pb-6">
+                      <div className="absolute top-3 sm:top-4 right-3 sm:right-4">
                         <Checkbox
                           checked={selectedMentees.has(mentee.uid)}
                           onCheckedChange={() => toggleMenteeSelection(mentee.uid)}
                           disabled={isProfileEditAllowed(mentee) && !mentee.hasEdited}
+                          className="h-4 w-4 sm:h-5 sm:w-5"
                         />
                       </div>
-                      <div className="space-y-2">
-                        <h3 className="font-medium flex items-center gap-2">
-                          {mentee.name}
+                      <div className="space-y-2 pr-8">
+                        <h3 className="font-medium text-sm sm:text-base flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2">
+                          <span className="break-words">{mentee.name}</span>
                           {mentee.hasEdited && (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-normal">
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-normal self-start">
                               Updated
                             </span>
                           )}
                         </h3>
-                        <p className="text-sm text-gray-500">{mentee.enrollmentNo}</p>
+                        <p className="text-xs sm:text-sm text-gray-500 break-all">{mentee.enrollmentNo}</p>
                         {isProfileEditAllowed(mentee) && (
                           <div className="space-y-1">
-                            <p className="text-xs text-green-600">
+                            <p className="text-xs text-green-600 break-words">
                               Profile edit enabled until{" "}
                               {new Date(mentee.profileEditAllowed!.expiresAt).toLocaleString()}
                             </p>
