@@ -81,14 +81,14 @@ export default function AdminUsers() {
       password: ""
     }
   })
-  
+
   // Update admin credentials when name changes for admin+mentor role
   useEffect(() => {
     if (newMentor.role === "admin+mentor" && newMentor.name) {
       // When name changes, update the admin email suggestion if it follows a pattern
-      if (!newMentor.adminCredentials.email || 
-          newMentor.adminCredentials.email.includes('@admin') ||
-          newMentor.adminCredentials.email.endsWith('.admin')) {
+      if (!newMentor.adminCredentials.email ||
+        newMentor.adminCredentials.email.includes('@admin') ||
+        newMentor.adminCredentials.email.endsWith('.admin')) {
         // Generate a suggested admin email based on the mentor email
         const emailParts = newMentor.email.split('@');
         if (emailParts.length === 2) {
@@ -117,6 +117,8 @@ export default function AdminUsers() {
   const [expandedMenteeCards, setExpandedMenteeCards] = useState<Record<string, boolean>>({})
   const [expandedAdminCards, setExpandedAdminCards] = useState<Record<string, boolean>>({})
   const [selectedMentorIds, setSelectedMentorIds] = useState<Record<string, string>>({})
+  const [pendingChanges, setPendingChanges] = useState<Record<string, { assignedMentorId?: string }>>({})
+  const [savingMentees, setSavingMentees] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -142,6 +144,12 @@ export default function AdminUsers() {
               mentorsArray.push(user)
             } else if (user.role === "mentee") {
               menteesArray.push(user)
+              // Separate assigned and unassigned mentees
+              if (user.assignedMentorId && user.assignedMentorId !== "none") {
+                assignedMenteesArray.push(user)
+              } else {
+                unassignedMenteesArray.push(user)
+              }
             } else if (user.role === "admin") {
               adminsArray.push(user)
             }
@@ -151,6 +159,8 @@ export default function AdminUsers() {
           setMentors(mentorsArray)
           setMentees(menteesArray)
           setAdmins(adminsArray)
+          setAssignedMentees(assignedMenteesArray)
+          setUnassignedMentees(unassignedMenteesArray)
         }
       } catch (error) {
         console.error("Error fetching users:", error)
@@ -191,7 +201,7 @@ export default function AdminUsers() {
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    
+
     if (showRedirectCountdown && redirectCountdown > 0) {
       timer = setTimeout(() => {
         setRedirectCountdown(redirectCountdown - 1);
@@ -201,7 +211,7 @@ export default function AdminUsers() {
       setShowRedirectCountdown(false);
       handleLoginAsNewUser();
     }
-    
+
     return () => {
       if (timer) clearTimeout(timer);
     };
@@ -209,14 +219,14 @@ export default function AdminUsers() {
 
   const handleLoginAsNewUser = async () => {
     if (!createdUser) return;
-    
+
     try {
       // Sign out current user (admin)
       await signOut(auth);
-      
+
       // Sign in as new user
       await signInWithEmailAndPassword(auth, createdUser.email, newUserPassword);
-      
+
       // Redirect to appropriate dashboard based on role
       if (createdUser.role === "mentor") {
         router.push("/mentor/dashboard");
@@ -228,42 +238,83 @@ export default function AdminUsers() {
     }
   };
 
-  const handleAssignMentor = async (menteeId: string, mentorId: string) => {
+  const handleMentorChange = (menteeId: string, mentorId: string) => {
+    // Store pending changes instead of immediately updating Firebase
+    setPendingChanges(prev => ({
+      ...prev,
+      [menteeId]: {
+        assignedMentorId: mentorId === "none" ? undefined : mentorId
+      }
+    }))
+  }
+
+  const handleSaveMenteeChanges = async (menteeId: string) => {
+    const changes = pendingChanges[menteeId]
+    if (!changes) return
+
+    setSavingMentees(prev => ({ ...prev, [menteeId]: true }))
+
     try {
       const menteeRef = ref(db, `users/${menteeId}`)
-      await update(menteeRef, {
-        assignedMentorId: mentorId,
-      })
+      const updateData: any = {}
+
+      if (changes.assignedMentorId === undefined) {
+        updateData.assignedMentorId = null // Remove mentor assignment
+      } else {
+        updateData.assignedMentorId = changes.assignedMentorId
+      }
+
+      await update(menteeRef, updateData)
 
       // Update local state
-      setUsers(users.map((user) => (user.uid === menteeId ? { ...user, assignedMentorId: mentorId } : user)))
-      
-      // Update mentees state
-      const updatedMentees = mentees.map((mentee) => 
-        mentee.uid === menteeId ? { ...mentee, assignedMentorId: mentorId } : mentee
-      );
-      setMentees(updatedMentees);
-      
-      // Re-filter mentees
-      const assigned = updatedMentees.filter(mentee => mentee.assignedMentorId);
-      const unassigned = updatedMentees.filter(mentee => !mentee.assignedMentorId);
-      
-      // setAssignedMentees(assigned);
-      // setUnassignedMentees(unassigned);
-      
+      const updatedUsers = users.map((user) =>
+        user.uid === menteeId ? { ...user, ...updateData } : user
+      )
+      setUsers(updatedUsers)
+
+      const updatedMentees = mentees.map((mentee) =>
+        mentee.uid === menteeId ? { ...mentee, ...updateData } : mentee
+      )
+      setMentees(updatedMentees)
+
+      // Re-categorize mentees
+      const assigned = updatedMentees.filter(mentee => mentee.assignedMentorId && mentee.assignedMentorId !== "none")
+      const unassigned = updatedMentees.filter(mentee => !mentee.assignedMentorId || mentee.assignedMentorId === "none")
+
+      setAssignedMentees(assigned)
+      setUnassignedMentees(unassigned)
+
+      // Clear pending changes
+      setPendingChanges(prev => {
+        const newChanges = { ...prev }
+        delete newChanges[menteeId]
+        return newChanges
+      })
+
+      const mentorName = updateData.assignedMentorId ? getMentorName(updateData.assignedMentorId) : "None"
       toast({
-        title: "Mentor assigned successfully",
-        description: `Mentee has been assigned to ${getMentorName(mentorId)}`,
+        title: "Changes saved successfully",
+        description: `Mentee mentor updated to: ${mentorName}`,
         variant: "default",
       })
     } catch (error) {
-      console.error("Error assigning mentor:", error)
+      console.error("Error saving mentee changes:", error)
       toast({
-        title: "Error assigning mentor",
-        description: "There was an error assigning the mentor. Please try again.",
+        title: "Error saving changes",
+        description: "There was an error saving the changes. Please try again.",
         variant: "destructive",
       })
+    } finally {
+      setSavingMentees(prev => ({ ...prev, [menteeId]: false }))
     }
+  }
+
+  const handleCancelMenteeChanges = (menteeId: string) => {
+    setPendingChanges(prev => {
+      const newChanges = { ...prev }
+      delete newChanges[menteeId]
+      return newChanges
+    })
   }
 
   const handleDeleteUser = async (userId: string) => {
@@ -317,7 +368,7 @@ export default function AdminUsers() {
         createdBy: adminUid,
         createdAt: new Date().toISOString(),
       }
-      
+
 
 
       // Save mentor user data
@@ -325,7 +376,7 @@ export default function AdminUsers() {
 
       // Sign out the newly created account(s)
       await signOut(auth)
-      
+
       // Sign back in as admin
       if (adminEmail) {
         try {
@@ -339,19 +390,19 @@ export default function AdminUsers() {
       const newMentorUser = { ...userData, uid: mentorUser.uid } as User
       setUsers([...users, newMentorUser])
       setMentors([...mentors, newMentorUser])
-      
+
 
 
       // Store created user data for success dialog
       setCreatedUser(newMentorUser)
-      
+
       // Store the password for login purposes
       setNewUserPassword(newMentor.password)
-      
+
       // Close dialog and open success dialog
       setIsDialogOpen(false)
       setIsSuccessDialogOpen(true)
-      
+
       // Start countdown for redirection
       setRedirectCountdown(15)
       setShowRedirectCountdown(true)
@@ -423,14 +474,17 @@ export default function AdminUsers() {
     }))
   }
 
-  const handleSelectMentor = (menteeId: string, mentorId: string) => {
-    setSelectedMentorIds(prev => ({
-      ...prev,
-      [menteeId]: mentorId
-    }))
-    
-    // Immediately assign the mentor to the mentee
-    handleAssignMentor(menteeId, mentorId)
+  const getCurrentMentorId = (menteeId: string) => {
+    const pendingChange = pendingChanges[menteeId]
+    if (pendingChange) {
+      return pendingChange.assignedMentorId || "none"
+    }
+    const mentee = mentees.find(m => m.uid === menteeId)
+    return mentee?.assignedMentorId || "none"
+  }
+
+  const hasPendingChanges = (menteeId: string) => {
+    return !!pendingChanges[menteeId]
   }
 
   if (!userData || userData.role !== "admin") {
@@ -467,12 +521,12 @@ export default function AdminUsers() {
                       Fill in the details to create a new {newMentor.role === "mentor" ? "mentor" : "admin"} account.
                     </DialogDescription>
                   </DialogHeader>
-                  
+
                   <div className="p-6">
                     {error && (
                       <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm mb-6">{error}</div>
                     )}
-                    
+
                     <div className="space-y-6">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-3">
@@ -485,7 +539,7 @@ export default function AdminUsers() {
                             className="h-11"
                           />
                         </div>
-                        
+
                         <div className="space-y-3">
                           <Label htmlFor="role" className="text-sm font-medium">Role</Label>
                           <Select
@@ -494,11 +548,11 @@ export default function AdminUsers() {
                               const role = value as "mentor" | "admin" | "admin+mentor";
                               // Generate random password for mentor role
                               if (role === "mentor" && newMentor.role !== "mentor") {
-                                const randomPassword = Math.random().toString(36).slice(-8) + 
-                                  Math.random().toString(36).toUpperCase().slice(-2) + 
+                                const randomPassword = Math.random().toString(36).slice(-8) +
+                                  Math.random().toString(36).toUpperCase().slice(-2) +
                                   Math.floor(Math.random() * 10) + "!";
-                                setNewMentor({ 
-                                  ...newMentor, 
+                                setNewMentor({
+                                  ...newMentor,
                                   role,
                                   password: randomPassword
                                 });
@@ -517,7 +571,7 @@ export default function AdminUsers() {
                           </Select>
                         </div>
                       </div>
-                      
+
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-3">
                           <Label htmlFor="email" className="text-sm font-medium">Email</Label>
@@ -530,7 +584,7 @@ export default function AdminUsers() {
                             className="h-11"
                           />
                         </div>
-                        
+
                         <div className="space-y-3">
                           <div className="flex justify-between items-center">
                             <Label htmlFor="password" className="text-sm font-medium">Password</Label>
@@ -538,8 +592,8 @@ export default function AdminUsers() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const randomPassword = Math.random().toString(36).slice(-8) + 
-                                    Math.random().toString(36).toUpperCase().slice(-2) + 
+                                  const randomPassword = Math.random().toString(36).slice(-8) +
+                                    Math.random().toString(36).toUpperCase().slice(-2) +
                                     Math.floor(Math.random() * 10) + "!";
                                   setNewMentor({ ...newMentor, password: randomPassword });
                                 }}
@@ -558,8 +612,8 @@ export default function AdminUsers() {
                               placeholder="Enter password"
                               className="h-11 pr-10"
                             />
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               onClick={() => setShowPassword(!showPassword)}
                               className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                             >
@@ -570,19 +624,19 @@ export default function AdminUsers() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <DialogFooter className="px-6 py-4 bg-gray-50">
                     <div className="flex gap-3 justify-end w-full">
-                      <Button 
-                        variant="outline" 
+                      <Button
+                        variant="outline"
                         onClick={() => setIsDialogOpen(false)}
                         className="px-4 py-2 h-11"
                       >
                         Cancel
                       </Button>
-                      <Button 
-                        onClick={() => setShowPasswordDialog(true)} 
-                        disabled={isCreating} 
+                      <Button
+                        onClick={() => setShowPasswordDialog(true)}
+                        disabled={isCreating}
                         className="bg-blue-600 hover:bg-blue-700 px-4 py-2 h-11"
                       >
                         {isCreating ? "Creating..." : "Create User"}
@@ -612,8 +666,8 @@ export default function AdminUsers() {
                           onChange={(e) => setAdminPassword(e.target.value)}
                           className="pr-10"
                         />
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                         >
@@ -623,13 +677,13 @@ export default function AdminUsers() {
                     </div>
                   </div>
                   <DialogFooter>
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => setShowPasswordDialog(false)}
                     >
                       Cancel
                     </Button>
-                    <Button 
+                    <Button
                       onClick={() => {
                         setShowPasswordDialog(false);
                         handleCreateMentor();
@@ -668,7 +722,7 @@ export default function AdminUsers() {
                         <p className="text-sm text-muted-foreground">{createdUser?.email}</p>
                       </div>
                     </div>
-                    
+
                     {showRedirectCountdown && (
                       <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md">
                         <p className="text-sm text-blue-700 flex items-center gap-2">
@@ -679,8 +733,8 @@ export default function AdminUsers() {
                     )}
                   </div>
                   <DialogFooter className="flex flex-col sm:flex-row gap-2">
-                    <Button 
-                      variant="outline" 
+                    <Button
+                      variant="outline"
                       onClick={() => {
                         setIsSuccessDialogOpen(false);
                         setShowRedirectCountdown(false);
@@ -689,7 +743,7 @@ export default function AdminUsers() {
                     >
                       Stay as Admin
                     </Button>
-                    <Button 
+                    <Button
                       onClick={handleLoginAsNewUser}
                       className="bg-blue-600 hover:bg-blue-700 sm:flex-1"
                     >
@@ -712,7 +766,7 @@ export default function AdminUsers() {
                   <TabsTrigger value="mentors">Mentors</TabsTrigger>
                   <TabsTrigger value="mentees">Mentees</TabsTrigger>
                 </TabsList>
-                
+
                 {/* Admins Tab */}
                 <TabsContent value="admins">
                   <div className="space-y-4">
@@ -724,17 +778,17 @@ export default function AdminUsers() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {admins.map((admin) => (
                           <div key={admin.uid} className="border rounded-lg overflow-hidden">
-                            <div 
+                            <div
                               className="bg-gradient-to-r from-purple-500 to-purple-700 p-4 flex justify-between items-center cursor-pointer"
                               onClick={() => toggleAdminCardExpansion(admin.uid)}
                             >
                               <div className="flex items-center space-x-3">
                                 <div className="h-10 w-10 rounded-full bg-purple-300 flex items-center justify-center text-purple-800 font-semibold">
                                   {admin.profileImage || admin.photoURL ? (
-                                    <Image 
-                                      src={admin.profileImage || admin.photoURL || ''} 
-                                      alt={admin.name} 
-                                      fill 
+                                    <Image
+                                      src={admin.profileImage || admin.photoURL || ''}
+                                      alt={admin.name}
+                                      fill
                                       className="object-cover"
                                     />
                                   ) : (
@@ -773,7 +827,7 @@ export default function AdminUsers() {
                                         <p className="font-medium text-sm truncate">{admin.uid}</p>
                                       </div>
                                     </div>
-                                    
+
                                     {userData?.uid !== admin.uid && (
                                       <div className="flex justify-end">
                                         <Button
@@ -812,16 +866,16 @@ export default function AdminUsers() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {mentors.map((mentor) => (
                           <div key={mentor.uid} className="border rounded-lg overflow-hidden">
-                            <div 
+                            <div
                               className="bg-gradient-to-r from-blue-500 to-blue-700 p-4 flex justify-between items-center cursor-pointer"
                               onClick={() => toggleMentorCardExpansion(mentor.uid)}
                             >
                               <div className="flex items-center space-x-3">
                                 <div className="h-10 w-10 rounded-full bg-blue-300 flex items-center justify-center text-blue-800 font-semibold relative">
                                   {mentor.profileImage || mentor.photoURL ? (
-                                    <Image 
-                                      src={mentor.profileImage || mentor.photoURL || ''} 
-                                      alt={mentor.name} 
+                                    <Image
+                                      src={mentor.profileImage || mentor.photoURL || ''}
+                                      alt={mentor.name}
                                       width={40}
                                       height={40}
                                       className="object-cover rounded-full"
@@ -842,7 +896,7 @@ export default function AdminUsers() {
                                 <ChevronDown className="h-5 w-5 text-white" />
                               </motion.div>
                             </div>
-                            
+
                             <AnimatePresence>
                               {expandedMentorCards[mentor.uid] && (
                                 <motion.div
@@ -900,58 +954,33 @@ export default function AdminUsers() {
                 {/* Mentees Tab */}
                 <TabsContent value="mentees">
                   <div className="space-y-8">
-                    {/* Class Filter */}
                     <div className="flex justify-between items-center">
                       <h2 className="text-xl font-semibold">Mentees</h2>
-                      <div className="flex items-center gap-2">
-                        <Filter className="h-4 w-4 text-gray-500" />
-                        {/* <Select value={selectedClassId || "all"} onValueChange={setSelectedClassId}>
-                          <SelectTrigger className="w-[250px]">
-                            <SelectValue placeholder="Filter by class" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="all">All Classes</SelectItem>
-                            {classes.map((classInfo) => (
-                              <SelectItem key={classInfo.id} value={classInfo.id}>
-                                {classInfo.name} - {classInfo.year} ({classInfo.section})
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select> */}
-                      </div>
                     </div>
 
-                    {/* <div>
-                      {selectedClassId && selectedClassId !== "all" && (
-                        <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-                          <p className="text-amber-800 font-medium flex items-center">
-                            <Filter className="h-4 w-4 mr-2" />
-                            Showing mentees from: {getSelectedClassName()}
-                          </p>
-                        </div>
-                      )}
-                    </div> */}
                     {/* Unassigned Mentees */}
                     <div>
-                      <h3 className="text-lg font-medium mb-3">Unassigned Mentees</h3>
-                      {mentees.length === 0 ? (
-                        <div className="text-center p-4 border rounded-lg">
-                          <p>No unassigned mentees found</p>
+                      <h3 className="text-lg font-medium mb-3 text-red-600">
+                        Unassigned Mentees ({unassignedMentees.length})
+                      </h3>
+                      {unassignedMentees.length === 0 ? (
+                        <div className="text-center p-4 border rounded-lg bg-green-50">
+                          <p className="text-green-600">All mentees have been assigned to mentors!</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {mentees.map((mentee) => (
+                          {unassignedMentees.map((mentee) => (
                             <div key={mentee.uid} className="border rounded-lg overflow-hidden">
-                              <div 
+                              <div
                                 className="bg-gradient-to-r from-red-500 to-red-700 p-4 flex justify-between items-center cursor-pointer"
                                 onClick={() => toggleMenteeCardExpansion(mentee.uid)}
                               >
                                 <div className="flex items-center space-x-3">
-                                  <div className="h-10 w-10 rounded-full bg-red-300 flex items-center justify-center text-red-800 font-semibold relative">
+                                  <div className="h-10 w-10 rounded-full bg-red-300 flex items-center justify-center text-red-800 font-semibold">
                                     {mentee.profileImage || mentee.photoURL ? (
-                                      <Image 
-                                        src={mentee.profileImage || mentee.photoURL || ''} 
-                                        alt={mentee.name} 
+                                      <Image
+                                        src={mentee.profileImage || mentee.photoURL || ''}
+                                        alt={mentee.name}
                                         width={40}
                                         height={40}
                                         className="object-cover rounded-full"
@@ -965,12 +994,17 @@ export default function AdminUsers() {
                                     <p className="text-red-100 text-sm">{mentee.email}</p>
                                   </div>
                                 </div>
-                                <motion.div
-                                  animate={{ rotate: expandedMenteeCards[mentee.uid] ? 180 : 0 }}
-                                  transition={{ duration: 0.3 }}
-                                >
-                                  <ChevronDown className="h-5 w-5 text-white" />
-                                </motion.div>
+                                <div className="flex items-center space-x-2">
+                                  {hasPendingChanges(mentee.uid) && (
+                                    <div className="h-2 w-2 bg-yellow-300 rounded-full animate-pulse"></div>
+                                  )}
+                                  <motion.div
+                                    animate={{ rotate: expandedMenteeCards[mentee.uid] ? 180 : 0 }}
+                                    transition={{ duration: 0.3 }}
+                                  >
+                                    <ChevronDown className="h-5 w-5 text-white" />
+                                  </motion.div>
+                                </div>
                               </div>
                               <AnimatePresence>
                                 {expandedMenteeCards[mentee.uid] && (
@@ -1000,14 +1034,17 @@ export default function AdminUsers() {
                                           <p className="font-medium">{mentee.section || "N/A"}</p>
                                         </div>
                                       </div>
-                                      
-                                      <div className="flex justify-end space-x-2">
-                                        <Select 
-                                          value={selectedMentorIds[mentee.uid] || "none"}
-                                          onValueChange={(value) => handleSelectMentor(mentee.uid, value)}
+
+                                      <div className="mb-4">
+                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                          Assign Mentor
+                                        </Label>
+                                        <Select
+                                          value={getCurrentMentorId(mentee.uid)}
+                                          onValueChange={(value) => handleMentorChange(mentee.uid, value)}
                                         >
-                                          <SelectTrigger className="w-[180px]">
-                                            <SelectValue placeholder="Assign mentor" />
+                                          <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Select mentor" />
                                           </SelectTrigger>
                                           <SelectContent>
                                             <SelectItem value="none">None</SelectItem>
@@ -1018,7 +1055,9 @@ export default function AdminUsers() {
                                             ))}
                                           </SelectContent>
                                         </Select>
-                                        
+                                      </div>
+
+                                      <div className="flex justify-between items-center">
                                         <Button
                                           variant="destructive"
                                           size="sm"
@@ -1027,6 +1066,36 @@ export default function AdminUsers() {
                                           <Trash2 className="h-4 w-4 mr-1" />
                                           Delete
                                         </Button>
+
+                                        {hasPendingChanges(mentee.uid) && (
+                                          <div className="flex space-x-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => handleCancelMenteeChanges(mentee.uid)}
+                                            >
+                                              Cancel
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              onClick={() => handleSaveMenteeChanges(mentee.uid)}
+                                              disabled={savingMentees[mentee.uid]}
+                                              className="bg-green-600 hover:bg-green-700"
+                                            >
+                                              {savingMentees[mentee.uid] ? (
+                                                <>
+                                                  <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white mr-1"></div>
+                                                  Saving...
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Check className="h-4 w-4 mr-1" />
+                                                  Save
+                                                </>
+                                              )}
+                                            </Button>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </motion.div>
@@ -1034,40 +1103,33 @@ export default function AdminUsers() {
                               </AnimatePresence>
                             </div>
                           ))}
-                          {mentees.length === 0 && (
-                            <div className="col-span-3 flex flex-col items-center justify-center p-8 bg-gray-50 rounded-lg">
-                              <Users className="h-16 w-16 text-red-300 mb-4" />
-                              <p className="text-xl font-medium text-gray-800 mb-2">No unassigned mentees found</p>
-                              <p className="text-sm text-muted-foreground text-center mb-4">
-                                All mentees have been assigned to mentors
-                              </p>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
 
                     {/* Assigned Mentees */}
                     <div>
-                      <h3 className="text-lg font-medium mb-3">Assigned Mentees</h3>
-                      {mentees.length === 0 ? (
-                        <div className="text-center p-4 border rounded-lg">
-                          <p>No assigned mentees found</p>
+                      <h3 className="text-lg font-medium mb-3 text-green-600">
+                        Assigned Mentees ({assignedMentees.length})
+                      </h3>
+                      {assignedMentees.length === 0 ? (
+                        <div className="text-center p-4 border rounded-lg bg-red-50">
+                          <p className="text-red-600">No mentees have been assigned to mentors yet.</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {mentees.map((mentee) => (
+                          {assignedMentees.map((mentee) => (
                             <div key={mentee.uid} className="border rounded-lg overflow-hidden">
-                              <div 
+                              <div
                                 className="bg-gradient-to-r from-green-500 to-green-700 p-4 flex justify-between items-center cursor-pointer"
                                 onClick={() => toggleMenteeCardExpansion(mentee.uid)}
                               >
                                 <div className="flex items-center space-x-3">
-                                  <div className="h-10 w-10 rounded-full bg-green-300 flex items-center justify-center text-green-800 font-semibold relative">
+                                  <div className="h-10 w-10 rounded-full bg-green-300 flex items-center justify-center text-green-800 font-semibold">
                                     {mentee.profileImage || mentee.photoURL ? (
-                                      <Image 
-                                        src={mentee.profileImage || mentee.photoURL || ''} 
-                                        alt={mentee.name} 
+                                      <Image
+                                        src={mentee.profileImage || mentee.photoURL || ''}
+                                        alt={mentee.name}
                                         width={40}
                                         height={40}
                                         className="object-cover rounded-full"
@@ -1081,12 +1143,17 @@ export default function AdminUsers() {
                                     <p className="text-green-100 text-sm">{mentee.email}</p>
                                   </div>
                                 </div>
-                                <motion.div
-                                  animate={{ rotate: expandedMenteeCards[mentee.uid] ? 180 : 0 }}
-                                  transition={{ duration: 0.3 }}
-                                >
-                                  <ChevronDown className="h-5 w-5 text-white" />
-                                </motion.div>
+                                <div className="flex items-center space-x-2">
+                                  {hasPendingChanges(mentee.uid) && (
+                                    <div className="h-2 w-2 bg-yellow-300 rounded-full animate-pulse"></div>
+                                  )}
+                                  <motion.div
+                                    animate={{ rotate: expandedMenteeCards[mentee.uid] ? 180 : 0 }}
+                                    transition={{ duration: 0.3 }}
+                                  >
+                                    <ChevronDown className="h-5 w-5 text-white" />
+                                  </motion.div>
+                                </div>
                               </div>
                               <AnimatePresence>
                                 {expandedMenteeCards[mentee.uid] && (
@@ -1115,18 +1182,17 @@ export default function AdminUsers() {
                                           <p className="text-sm text-gray-500">Section</p>
                                           <p className="font-medium">{mentee.section || "N/A"}</p>
                                         </div>
-                                        <div className="bg-green-50 p-3 rounded-md col-span-2">
-                                          <p className="text-sm text-gray-500">Assigned Mentor</p>
-                                          <p className="font-medium">{getMentorName(mentee.assignedMentorId)}</p>
-                                        </div>
                                       </div>
-                                      
-                                      <div className="flex justify-end space-x-2">
-                                        <Select 
-                                          value={selectedMentorIds[mentee.uid] || mentee.assignedMentorId || "none"}
-                                          onValueChange={(value) => handleSelectMentor(mentee.uid, value)}
+
+                                      <div className="mb-4">
+                                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
+                                          Assigned Mentor
+                                        </Label>
+                                        <Select
+                                          value={getCurrentMentorId(mentee.uid)}
+                                          onValueChange={(value) => handleMentorChange(mentee.uid, value)}
                                         >
-                                          <SelectTrigger className="w-[180px]">
+                                          <SelectTrigger className="w-full">
                                             <SelectValue placeholder="Change mentor" />
                                           </SelectTrigger>
                                           <SelectContent>
@@ -1138,7 +1204,9 @@ export default function AdminUsers() {
                                             ))}
                                           </SelectContent>
                                         </Select>
-                                        
+                                      </div>
+
+                                      <div className="flex justify-between items-center">
                                         <Button
                                           variant="destructive"
                                           size="sm"
@@ -1147,6 +1215,36 @@ export default function AdminUsers() {
                                           <Trash2 className="h-4 w-4 mr-1" />
                                           Delete
                                         </Button>
+
+                                        {hasPendingChanges(mentee.uid) && (
+                                          <div className="flex space-x-2">
+                                            <Button
+                                              variant="outline"
+                                              size="sm"
+                                              onClick={() => handleCancelMenteeChanges(mentee.uid)}
+                                            >
+                                              Cancel
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              onClick={() => handleSaveMenteeChanges(mentee.uid)}
+                                              disabled={savingMentees[mentee.uid]}
+                                              className="bg-green-600 hover:bg-green-700"
+                                            >
+                                              {savingMentees[mentee.uid] ? (
+                                                <>
+                                                  <div className="animate-spin rounded-full h-3 w-3 border-t-2 border-b-2 border-white mr-1"></div>
+                                                  Saving...
+                                                </>
+                                              ) : (
+                                                <>
+                                                  <Check className="h-4 w-4 mr-1" />
+                                                  Save
+                                                </>
+                                              )}
+                                            </Button>
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
                                   </motion.div>

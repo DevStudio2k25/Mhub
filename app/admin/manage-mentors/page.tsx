@@ -8,6 +8,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { useToast } from "@/hooks/use-toast"
 import { Image } from "@/components/ui/image"
+import { ChevronDown, ChevronUp } from "lucide-react"
 
 interface Mentor {
   uid: string
@@ -21,6 +22,7 @@ interface Mentor {
 export default function ManageMentors() {
   const [mentors, setMentors] = useState<Mentor[]>([])
   const [loading, setLoading] = useState(true)
+  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
   const { toast } = useToast()
 
   // Fetch all mentors
@@ -54,6 +56,14 @@ export default function ManageMentors() {
     fetchMentors()
   }, [])
 
+  // Toggle card expansion
+  const toggleCardExpansion = (mentorId: string) => {
+    setExpandedCards(prev => ({
+      ...prev,
+      [mentorId]: !prev[mentorId]
+    }))
+  }
+
   // Toggle admin access for a mentor
   const toggleAdminAccess = async (mentorId: string, currentValue: boolean) => {
     try {
@@ -63,8 +73,8 @@ export default function ManageMentors() {
       })
 
       // Update local state
-      setMentors(mentors.map(mentor => 
-        mentor.uid === mentorId 
+      setMentors(mentors.map(mentor =>
+        mentor.uid === mentorId
           ? { ...mentor, hasAdminAccess: !currentValue }
           : mentor
       ))
@@ -85,22 +95,31 @@ export default function ManageMentors() {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-6">
-        <h1 className="text-2xl font-bold mb-6">Manage Mentors Access</h1>
-        
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-800">Manage Mentors Access</h1>
+          <p className="text-muted-foreground text-lg mt-2">Control admin access for mentors in the system</p>
+        </div>
+
         {loading ? (
-          <div className="text-center">Loading mentors...</div>
+          <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
+          </div>
         ) : (
-          <div className="grid gap-4">
+          <div className="space-y-4">
             {mentors.map((mentor) => (
-              <Card key={mentor.uid}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-4">
-                      <div className="h-12 w-12 rounded-full bg-purple-300 flex items-center justify-center text-purple-800 font-semibold relative overflow-hidden">
+              <Card key={mentor.uid} className="border-0 shadow-lg rounded-xl overflow-hidden w-full">
+                <CardContent className="p-0">
+                  {/* Header - Always visible */}
+                  <div
+                    className="bg-gradient-to-r from-purple-500 to-purple-700 p-4 flex items-center justify-between cursor-pointer hover:from-purple-600 hover:to-purple-800 transition-colors w-full"
+                    onClick={() => toggleCardExpansion(mentor.uid)}
+                  >
+                    <div className="flex items-center space-x-4 flex-1 min-w-0">
+                      <div className="h-12 w-12 rounded-full bg-purple-300 flex items-center justify-center text-purple-800 font-semibold relative overflow-hidden flex-shrink-0">
                         {mentor.profileImage || mentor.photoURL ? (
-                          <Image 
-                            src={mentor.profileImage || mentor.photoURL || ''} 
+                          <Image
+                            src={mentor.profileImage || mentor.photoURL || ''}
                             alt={mentor.name}
                             fill
                             className="object-cover"
@@ -109,22 +128,58 @@ export default function ManageMentors() {
                           mentor.name.substring(0, 2).toUpperCase()
                         )}
                       </div>
-                      <div>
-                        <h3 className="font-semibold">{mentor.name}</h3>
-                        <p className="text-sm text-gray-500">{mentor.email}</p>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-white truncate">{mentor.name}</h3>
+                        <p className="text-sm text-purple-100 truncate">{mentor.email}</p>
                       </div>
                     </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-gray-500">
-                        {mentor.hasAdminAccess ? "Admin Access Enabled" : "Admin Access Disabled"}
-                      </span>
-                      <Switch
-                        checked={mentor.hasAdminAccess}
-                        onCheckedChange={() => toggleAdminAccess(mentor.uid, mentor.hasAdminAccess || false)}
-                      />
+
+                    <div className="flex-shrink-0">
+                      {expandedCards[mentor.uid] ? (
+                        <ChevronUp className="h-5 w-5 text-purple-100" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-purple-100" />
+                      )}
                     </div>
                   </div>
+
+                  {/* Expanded Content */}
+                  {expandedCards[mentor.uid] && (
+                    <div className="p-6 bg-white">
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div>
+                            <label className="text-sm font-medium text-gray-500 block mb-1">Name</label>
+                            <p className="text-gray-800 font-medium">{mentor.name}</p>
+                          </div>
+                          <div>
+                            <label className="text-sm font-medium text-gray-500 block mb-1">Email</label>
+                            <p className="text-gray-800 break-all">{mentor.email}</p>
+                          </div>
+                        </div>
+
+                        <div className="border-t pt-6">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-gray-800 mb-2">Admin Access Control</h4>
+                              <p className="text-sm text-gray-500">
+                                {mentor.hasAdminAccess
+                                  ? "This mentor has admin privileges and can access admin features"
+                                  : "This mentor has standard mentor privileges only"
+                                }
+                              </p>
+                            </div>
+                            <div className="flex-shrink-0">
+                              <Switch
+                                checked={mentor.hasAdminAccess}
+                                onCheckedChange={() => toggleAdminAccess(mentor.uid, mentor.hasAdminAccess || false)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}
