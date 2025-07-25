@@ -132,7 +132,7 @@ export default function MenteeProfile() {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-6">
+      <div className="w-full max-w-none px-6 py-6">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">My Profile</h1>
         
         {loading ? (
@@ -140,11 +140,11 @@ export default function MenteeProfile() {
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-8 w-full">
             {/* Main Profile Section */}
-            <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex flex-col lg:flex-row gap-8 w-full">
               {/* Mentee Details Card */}
-              <div className="w-full md:w-2/3">
+              <div className="w-full lg:w-2/3">
                 <Card className="h-full border-0 shadow-lg rounded-xl overflow-hidden">
                   <CardHeader className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-center pb-8 relative">
                     <div className="absolute inset-0 opacity-10">
@@ -256,7 +256,7 @@ export default function MenteeProfile() {
                   </CardHeader>
                   <CardContent className="p-6">
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         <div className="flex items-start gap-3 p-4 bg-amber-50 rounded-md">
                           <GraduationCap className="h-5 w-5 min-w-5 text-amber-600 mt-0.5" />
                           <div className="w-full">
@@ -344,7 +344,7 @@ export default function MenteeProfile() {
               </div>
 
               {/* Class Information Card */}
-              <div className="w-full md:w-1/3">
+              <div className="w-full lg:w-1/3">
                 <Card className="h-full border-0 shadow-lg rounded-xl overflow-hidden">
                   <CardHeader className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
                     <div className="flex items-center space-x-3">
@@ -364,7 +364,7 @@ export default function MenteeProfile() {
                           <p className="text-gray-500">Year: {classInfo.year} | Section: {classInfo.section}</p>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                           <div className="flex flex-col items-center p-4 bg-blue-50 rounded-md">
                             <p className="text-xs text-gray-500 mb-1">Year</p>
                             <p className="font-medium text-lg">{classInfo.year}</p>
@@ -388,7 +388,7 @@ export default function MenteeProfile() {
             </div>
 
             {/* Account Information Card */}
-            <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
+            <Card className="border-0 shadow-lg rounded-xl overflow-hidden w-full">
               <CardHeader className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
                 <div className="flex items-center space-x-3">
                   <div className="h-10 w-10 rounded-full bg-purple-300 flex items-center justify-center text-purple-800 font-semibold">
@@ -401,7 +401,7 @@ export default function MenteeProfile() {
                 </div>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                   <div className="flex items-start gap-3 p-4 bg-purple-50 rounded-md">
                     <User className="h-5 w-5 min-w-5 text-purple-600 mt-0.5" />
                     <div className="w-full">

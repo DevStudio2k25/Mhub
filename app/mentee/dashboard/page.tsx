@@ -6,13 +6,13 @@ import { db } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { 
-  FileText, 
-  Calendar, 
-  MessageSquare, 
-  User, 
-  ChevronRight, 
-  BookOpen, 
+import {
+  FileText,
+  Calendar,
+  MessageSquare,
+  User,
+  ChevronRight,
+  BookOpen,
   GraduationCap,
   ChevronDown,
   School,
@@ -96,7 +96,7 @@ export default function MenteeDashboard() {
     const timer = setInterval(() => {
       setCurrentTime(new Date())
     }, 60000) // Update every minute
-    
+
     return () => clearInterval(timer)
   }, [])
 
@@ -123,14 +123,14 @@ export default function MenteeDashboard() {
         // Fetch complete mentee data
         const menteeRef = ref(db, `users/${userData.uid}`)
         const menteeSnapshot = await get(menteeRef)
-        
+
         if (menteeSnapshot.exists()) {
           const completeData = {
             uid: userData.uid,
             ...menteeSnapshot.val()
           }
           setMenteeData(completeData)
-          
+
           // Fetch class info if assigned
           if (completeData.classId) {
             const classRef = ref(db, `classes/${completeData.classId}`)
@@ -143,7 +143,7 @@ export default function MenteeDashboard() {
               })
             }
           }
-          
+
           // Fetch mentor info if assigned
           if (completeData.assignedMentorId) {
             const mentorRef = ref(db, `users/${completeData.assignedMentorId}`)
@@ -235,7 +235,7 @@ export default function MenteeDashboard() {
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-6">
+      <div className="w-full max-w-none px-6 py-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
@@ -245,11 +245,11 @@ export default function MenteeDashboard() {
             <h1 className="text-3xl font-bold mb-8 text-gray-800">Welcome, {menteeData?.name || "Mentee"}</h1>
 
             {/* Main dashboard layout - 2 columns on larger screens */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 w-full">
               {/* Left column - Summary Cards */}
-              <div className="space-y-4">
+              <div className="space-y-6 w-full">
                 {/* Summary Cards - 2 per row */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {/* Reports Card */}
                   <Card className="card-hover border-0 shadow-lg rounded-xl overflow-hidden">
                     <CardHeader className="flex flex-row items-center justify-between pb-2 bg-gradient-to-br from-amber-500/10 to-amber-500/5">
@@ -290,7 +290,7 @@ export default function MenteeDashboard() {
                 </div>
 
                 {/* Second row of summary cards */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   {/* Queries Card */}
                   <Card className="card-hover border-0 shadow-lg rounded-xl overflow-hidden">
                     <CardHeader className="flex flex-row items-center justify-between pb-2 bg-gradient-to-br from-amber-500/10 to-amber-500/5">
@@ -335,7 +335,7 @@ export default function MenteeDashboard() {
                 </div>
 
                 {/* Recent Reports Section */}
-                <Card className="border-0 shadow-lg rounded-xl overflow-hidden mt-6">
+                <Card className="border-0 shadow-lg rounded-xl overflow-hidden mt-8 w-full">
                   <CardHeader className="bg-gradient-to-r from-amber-500/20 to-amber-500/5">
                     <CardTitle>Recent Reports</CardTitle>
                     <CardDescription>Your recently submitted reports</CardDescription>
@@ -354,9 +354,8 @@ export default function MenteeDashboard() {
                             </div>
                             <div className="text-sm">
                               <span
-                                className={`px-2 py-1 text-xs rounded-full ${
-                                  report.feedback ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
-                                }`}
+                                className={`px-2 py-1 text-xs rounded-full ${report.feedback ? "bg-green-100 text-green-800" : "bg-yellow-100 text-yellow-800"
+                                  }`}
                               >
                                 {report.feedback ? "Feedback received" : "Pending feedback"}
                               </span>
@@ -382,7 +381,7 @@ export default function MenteeDashboard() {
                 </Card>
 
                 {/* Upcoming Sessions Section */}
-                <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
+                <Card className="border-0 shadow-lg rounded-xl overflow-hidden w-full">
                   <CardHeader className="bg-gradient-to-r from-amber-500/20 to-amber-500/5">
                     <CardTitle>Upcoming Sessions</CardTitle>
                     <CardDescription>Your scheduled mentoring sessions</CardDescription>
@@ -400,17 +399,16 @@ export default function MenteeDashboard() {
                               <TooltipProvider>
                                 <Tooltip>
                                   <TooltipTrigger asChild>
-                                    <div className={`px-2 py-1 text-xs rounded-full ${
-                                      isSessionTimeArrived(session.datetime) 
-                                        ? "bg-green-100 text-green-800" 
-                                        : "bg-blue-100 text-blue-800"
-                                    }`}>
+                                    <div className={`px-2 py-1 text-xs rounded-full ${isSessionTimeArrived(session.datetime)
+                                      ? "bg-green-100 text-green-800"
+                                      : "bg-blue-100 text-blue-800"
+                                      }`}>
                                       {isSessionTimeArrived(session.datetime) ? "Join Now" : "Upcoming"}
                                     </div>
                                   </TooltipTrigger>
                                   <TooltipContent>
-                                    <p>{isSessionTimeArrived(session.datetime) 
-                                      ? "Session is active now" 
+                                    <p>{isSessionTimeArrived(session.datetime)
+                                      ? "Session is active now"
                                       : "Session hasn't started yet"}
                                     </p>
                                   </TooltipContent>
@@ -447,21 +445,21 @@ export default function MenteeDashboard() {
               </div>
 
               {/* Right column - Information Cards */}
-              <div className="space-y-4">
+              <div className="space-y-6">
                 {/* Information Cards - Profile, Class, and Mentor Info in a single column */}
-                <div className="grid grid-cols-1 gap-4 mb-8 max-w-md mx-auto">
+                <div className="grid grid-cols-1 gap-6 w-full">
                   {/* Profile Card */}
                   <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                    <div 
+                    <div
                       className="bg-gradient-to-r from-amber-500 to-amber-600 p-4 flex justify-between items-center cursor-pointer"
                       onClick={() => toggleCardExpansion('profile')}
                     >
                       <div className="flex items-center space-x-3">
                         <div className="h-10 w-10 rounded-full bg-amber-300 flex items-center justify-center text-amber-800 font-semibold">
                           {menteeData?.profileImage || menteeData?.photoURL ? (
-                            <Image 
-                              src={menteeData.profileImage || menteeData.photoURL} 
-                              alt={menteeData.name} 
+                            <Image
+                              src={menteeData.profileImage || menteeData.photoURL}
+                              alt={menteeData.name}
                               width={40}
                               height={40}
                               className="object-cover rounded-full"
@@ -475,8 +473,8 @@ export default function MenteeDashboard() {
                           <p className="text-amber-100 text-sm">Personal Information</p>
                         </div>
                       </div>
-                      <ChevronDown 
-                        className={`h-5 w-5 text-white transition-transform ${expandedCards.profile ? 'rotate-180' : ''}`} 
+                      <ChevronDown
+                        className={`h-5 w-5 text-white transition-transform ${expandedCards.profile ? 'rotate-180' : ''}`}
                       />
                     </div>
                     <AnimatePresence>
@@ -493,9 +491,9 @@ export default function MenteeDashboard() {
                             <div className="flex flex-col items-center mb-4">
                               <div className="h-24 w-24 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 font-semibold text-2xl mb-3 overflow-hidden">
                                 {menteeData?.profileImage || menteeData?.photoURL ? (
-                                  <Image 
-                                    src={menteeData.profileImage || menteeData.photoURL} 
-                                    alt={menteeData.name} 
+                                  <Image
+                                    src={menteeData.profileImage || menteeData.photoURL}
+                                    alt={menteeData.name}
                                     width={96}
                                     height={96}
                                     className="object-cover w-full h-full"
@@ -507,7 +505,7 @@ export default function MenteeDashboard() {
                               <h3 className="text-xl font-bold">{menteeData?.name}</h3>
                               <Badge className="mt-1 bg-amber-100 text-amber-800 hover:bg-amber-200">Mentee</Badge>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 gap-3 mt-4">
                               <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-md">
                                 <Mail className="h-4 w-4 text-amber-600" />
@@ -516,7 +514,7 @@ export default function MenteeDashboard() {
                                   <p className="font-medium">{menteeData?.email}</p>
                                 </div>
                               </div>
-                              
+
                               <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-md">
                                 <GraduationCap className="h-4 w-4 text-amber-600" />
                                 <div>
@@ -524,7 +522,7 @@ export default function MenteeDashboard() {
                                   <p className="font-medium">{menteeData?.enrollmentNo || "Not specified"}</p>
                                 </div>
                               </div>
-                              
+
                               {menteeData?.parentMobile && (
                                 <div className="flex items-center gap-2 p-3 bg-amber-50 rounded-md">
                                   <Phone className="h-4 w-4 text-amber-600" />
@@ -550,7 +548,7 @@ export default function MenteeDashboard() {
 
                   {/* Class Information Card */}
                   <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                    <div 
+                    <div
                       className="bg-gradient-to-r from-blue-500 to-blue-600 p-4 flex justify-between items-center cursor-pointer"
                       onClick={() => toggleCardExpansion('class')}
                     >
@@ -563,8 +561,8 @@ export default function MenteeDashboard() {
                           <p className="text-blue-100 text-sm">Academic Details</p>
                         </div>
                       </div>
-                      <ChevronDown 
-                        className={`h-5 w-5 text-white transition-transform ${expandedCards.class ? 'rotate-180' : ''}`} 
+                      <ChevronDown
+                        className={`h-5 w-5 text-white transition-transform ${expandedCards.class ? 'rotate-180' : ''}`}
                       />
                     </div>
                     <AnimatePresence>
@@ -585,24 +583,24 @@ export default function MenteeDashboard() {
                                     <BookOpen className="h-10 w-10 text-blue-600" />
                                   </div>
                                 </div>
-                                
+
                                 <div className="text-center mb-4">
                                   <h3 className="text-xl font-bold">{classInfo.name}</h3>
                                   <p className="text-gray-500">Year: {classInfo.year} | Section: {classInfo.section}</p>
                                 </div>
-                                
+
                                 <div className="bg-blue-50 p-4 rounded-lg">
                                   <p className="text-sm text-gray-700 leading-relaxed">
                                     {classInfo.description || "No class description available."}
                                   </p>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-2 gap-3">
                                   <div className="flex flex-col items-center p-3 bg-blue-50 rounded-md">
                                     <p className="text-xs text-gray-500">Year</p>
                                     <p className="font-medium text-lg">{classInfo.year}</p>
                                   </div>
-                                  
+
                                   <div className="flex flex-col items-center p-3 bg-blue-50 rounded-md">
                                     <p className="text-xs text-gray-500">Section</p>
                                     <p className="font-medium text-lg">{classInfo.section}</p>
@@ -623,7 +621,7 @@ export default function MenteeDashboard() {
 
                   {/* Mentor Information Card */}
                   <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                    <div 
+                    <div
                       className="bg-gradient-to-r from-green-500 to-green-600 p-4 flex justify-between items-center cursor-pointer"
                       onClick={() => toggleCardExpansion('mentor')}
                     >
@@ -636,8 +634,8 @@ export default function MenteeDashboard() {
                           <p className="text-green-100 text-sm">Mentor Details</p>
                         </div>
                       </div>
-                      <ChevronDown 
-                        className={`h-5 w-5 text-white transition-transform ${expandedCards.mentor ? 'rotate-180' : ''}`} 
+                      <ChevronDown
+                        className={`h-5 w-5 text-white transition-transform ${expandedCards.mentor ? 'rotate-180' : ''}`}
                       />
                     </div>
                     <AnimatePresence>
@@ -655,9 +653,9 @@ export default function MenteeDashboard() {
                               <div className="flex flex-col items-center">
                                 <div className="h-24 w-24 rounded-full bg-green-100 flex items-center justify-center text-green-800 font-semibold text-2xl mb-3 overflow-hidden">
                                   {mentor.photoURL ? (
-                                    <Image 
-                                      src={mentor.photoURL} 
-                                      alt={mentor.name} 
+                                    <Image
+                                      src={mentor.photoURL}
+                                      alt={mentor.name}
                                       width={96}
                                       height={96}
                                       className="object-cover w-full h-full"
@@ -668,7 +666,7 @@ export default function MenteeDashboard() {
                                 </div>
                                 <h3 className="text-xl font-bold">{mentor.name}</h3>
                                 <Badge className="mt-1 bg-green-100 text-green-800 hover:bg-green-200">Mentor</Badge>
-                                
+
                                 <div className="w-full mt-4 space-y-3">
                                   <div className="flex items-center gap-2 p-3 bg-green-50 rounded-md">
                                     <Mail className="h-4 w-4 text-green-600" />
@@ -678,7 +676,7 @@ export default function MenteeDashboard() {
                                     </div>
                                   </div>
                                 </div>
-                                
+
                                 <Button className="mt-4 bg-green-500 hover:bg-green-600 w-full" asChild>
                                   <Link href={`/mentee/contact-mentor/${mentor.uid}`}>
                                     <MessageSquare className="h-4 w-4 mr-2" />
