@@ -65,7 +65,7 @@ interface Mentee {
   hasEdited?: boolean
 }
 
-export default function MentorMentees() {
+function MentorMenteesContent() {
   const { userData } = useAuth()
   const [mentees, setMentees] = useState<Mentee[]>([])
   const [filteredMentees, setFilteredMentees] = useState<Mentee[]>([])
@@ -1126,5 +1126,20 @@ export default function MentorMentees() {
         )}
       </div>
     </DashboardLayout>
+  )
+}
+
+// Main export with Suspense wrapper
+export default function MentorMentees() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
+        </div>
+      </DashboardLayout>
+    }>
+      <MentorMenteesContent />
+    </Suspense>
   )
 }
