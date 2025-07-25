@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, Suspense } from "react"
 import { ref, get, set } from "firebase/database"
 import { db, auth } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
@@ -537,7 +537,7 @@ export default function MentorMentees() {
     <DashboardLayout>
       <Toaster richColors position="top-center" />
       <div className="space-y-8">
-        <div className="curved-decoration">
+        <div>
           <h1 className="text-4xl font-bold text-gray-800">My Mentees</h1>
           <p className="text-muted-foreground text-lg mt-2">View and manage your assigned mentees</p>
         </div>

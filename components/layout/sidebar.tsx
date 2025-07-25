@@ -4,10 +4,10 @@ import { useAuth } from "@/contexts/auth-context"
 import Link from "next/link"
 import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { 
-  Users, FileText, Calendar, MessageSquare, Upload, Home, LogOut, BookOpen, 
-  Sparkles, UserCircle, Menu, X, ShieldCheck, GraduationCap, School, 
-  BarChart, Settings, BookMarked, UserCog, UserCheck, ScrollText, 
+import {
+  Users, FileText, Calendar, MessageSquare, Upload, Home, LogOut, BookOpen,
+  Sparkles, UserCircle, Menu, X, ShieldCheck, GraduationCap, School,
+  BarChart, Settings, BookMarked, UserCog, UserCheck, ScrollText,
   Building, Presentation, HelpCircle
 } from "lucide-react"
 import { useState, useEffect } from "react"
@@ -50,15 +50,14 @@ export default function Sidebar() {
   }
 
   const linkClass = (path: string) => {
-    return `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${
-      isActive(path) ? "bg-amber-500 text-white font-medium shadow-md" : "hover:bg-amber-50 text-gray-700"
-    }`
+    return `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors ${isActive(path) ? "bg-amber-500 text-white font-medium shadow-md" : "hover:bg-amber-50 text-gray-700"
+      }`
   }
 
   const renderLinks = () => {
     // Check if we're on an admin page
     const isAdminPage = pathname.startsWith('/admin')
-    
+
     // If we're on an admin page and user has admin access (either admin or admin+mentor), show only admin links
     if (isAdminPage && (userData.role === 'admin' || userData.role === 'admin+mentor')) {
       return (
@@ -82,7 +81,7 @@ export default function Sidebar() {
         </>
       )
     }
-    
+
     // For non-admin pages, show role-specific links
     switch (userData.role) {
       case "admin":
@@ -206,22 +205,26 @@ export default function Sidebar() {
 
   // Mobile menu toggle button
   const mobileMenuButton = (
-    <button 
-      onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-      className="lg:hidden fixed top-4 left-4 z-50 bg-white p-2 rounded-full shadow-md border border-amber-200"
-    >
-      {isMobileMenuOpen ? <X size={24} className="text-amber-500" /> : <Menu size={24} className="text-amber-500" />}
-    </button>
+    <div className="lg:hidden sticky top-0 z-50 bg-white border-b border-amber-200 p-4 shadow-sm">
+      <button
+        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+        className="p-2 rounded-lg hover:bg-amber-50 transition-colors"
+      >
+        {isMobileMenuOpen ? <X size={24} className="text-amber-500" /> : <Menu size={24} className="text-amber-500" />}
+      </button>
+    </div>
   );
 
   return (
     <>
-      {mobileMenuButton}
-      
-      <div className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 lg:hidden ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} 
+      <div className="lg:hidden">
+        {mobileMenuButton}
+      </div>
+
+      <div className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 lg:hidden ${isMobileMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={() => setIsMobileMenuOpen(false)}
       />
-      
+
       <div className={`fixed lg:sticky top-0 left-0 h-screen w-72 bg-white flex flex-col z-40 shadow-xl lg:shadow-none transition-transform duration-300 ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         <div className="p-6 border-b">
           <div className="flex items-center gap-3 mb-6">
@@ -235,10 +238,10 @@ export default function Sidebar() {
           <div className="flex items-center gap-3 mt-4">
             {profileImageUrl ? (
               <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-amber-200">
-                <Image 
-                  src={profileImageUrl} 
-                  alt={userData.name} 
-                  fill 
+                <Image
+                  src={profileImageUrl}
+                  alt={userData.name}
+                  fill
                   className="object-cover"
                 />
               </div>
@@ -256,11 +259,11 @@ export default function Sidebar() {
             </div>
           </div>
         </div>
-        <nav 
-          className="flex-1 p-4 space-y-2 overflow-y-auto" 
-          style={{ 
-            scrollbarWidth: 'none', 
-            msOverflowStyle: 'none' 
+        <nav
+          className="flex-1 p-4 space-y-2 overflow-y-auto"
+          style={{
+            scrollbarWidth: 'none',
+            msOverflowStyle: 'none'
           }}
         >
           <style jsx>{`

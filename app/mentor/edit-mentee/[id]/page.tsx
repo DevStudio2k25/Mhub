@@ -215,7 +215,7 @@ export default function EditMenteePage() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div className="curved-decoration flex items-center">
+        <div className="flex items-center">
           <Button 
             variant="ghost" 
             className="mr-4 p-2"

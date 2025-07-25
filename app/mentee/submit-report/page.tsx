@@ -258,7 +258,7 @@ export default function SubmitReport() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div className="curved-decoration">
+        <div>
           <h1 className="text-4xl font-bold text-gray-800">Submit Report</h1>
           <p className="text-muted-foreground text-lg mt-2">Upload your report for mentor review</p>
         </div>

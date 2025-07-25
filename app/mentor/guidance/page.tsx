@@ -332,7 +332,7 @@ export default function MentorGuidance() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div className="curved-decoration">
+        <div>
           <h1 className="text-4xl font-bold text-gray-800">Project Guidance</h1>
           <p className="text-muted-foreground text-lg mt-2">Manage mentees under your guidance</p>
         </div>

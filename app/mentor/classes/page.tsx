@@ -183,7 +183,7 @@ export default function MentorClasses() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div className="curved-decoration">
+        <div>
           <h1 className="text-4xl font-bold text-gray-800">My Classes</h1>
           <p className="text-muted-foreground text-lg mt-2">Create and manage your classes</p>
         </div>

@@ -58,22 +58,7 @@
   }
 }
 
-.curved-decoration {
-  position: relative;
-}
 
-.curved-decoration::after {
-  content: "";
-  position: absolute;
-  width: 60px;
-  height: 30px;
-  border-top: 3px solid hsl(var(--primary));
-  border-right: 3px solid transparent;
-  border-radius: 100%;
-  transform: rotate(10deg);
-  right: -20px;
-  top: 10px;
-}
 
 .card-gradient {
   background: linear-gradient(135deg, hsl(var(--primary) / 0.1), hsl(var(--primary) / 0.05));

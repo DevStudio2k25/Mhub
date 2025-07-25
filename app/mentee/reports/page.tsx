@@ -72,7 +72,7 @@ export default function MenteeReports() {
   return (
     <DashboardLayout>
       <div className="space-y-8">
-        <div className="curved-decoration">
+        <div>
           <h1 className="text-4xl font-bold text-gray-800">My Reports</h1>
           <p className="text-muted-foreground text-lg mt-2">View all your submitted reports and feedback</p>
         </div>
