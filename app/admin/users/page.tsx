@@ -28,6 +28,7 @@ interface User {
   name: string
   email: string
   role: "admin" | "mentor" | "mentee"
+  mentorId?: string // Sequential mentor ID like MH2025001
   assignedMentorId?: string
   enrollmentNo?: string
   class?: string
@@ -82,6 +83,208 @@ export default function AdminUsers() {
     }
   })
 
+  // Bulk mentor creation states
+  const [bulkMentors, setBulkMentors] = useState<Array<{
+    name: string;
+    email: string;
+    password: string;
+    id: string;
+  }>>([])
+  const [isBulkMode, setIsBulkMode] = useState(false)
+
+  // Email validation states
+  const [emailErrors, setEmailErrors] = useState<Record<string, string>>({})
+  const [existingEmails, setExistingEmails] = useState<string[]>([])
+
+  // Creation process tracking
+  const [creationStatus, setCreationStatus] = useState<string>("")
+  const [creationProgress, setCreationProgress] = useState<{ current: number, total: number }>({ current: 0, total: 0 })
+  const [showProgressDialog, setShowProgressDialog] = useState(false)
+  const [progressSteps, setProgressSteps] = useState<Array<{
+    id: string;
+    title: string;
+    status: 'pending' | 'in-progress' | 'completed' | 'error';
+    details?: string;
+    timestamp?: string;
+  }>>([])
+  const [currentMentorBeingCreated, setCurrentMentorBeingCreated] = useState<{ name: string, email: string, mentorId?: string } | null>(null)
+
+  // Load existing emails on component mount
+  useEffect(() => {
+    const loadExistingEmails = async () => {
+      try {
+        const usersRef = ref(db, "users")
+        const snapshot = await get(usersRef)
+
+        if (snapshot.exists()) {
+          const usersData = snapshot.val()
+          const emails = Object.values(usersData).map((user: any) => user.email).filter(Boolean)
+          setExistingEmails(emails)
+        }
+      } catch (error) {
+        console.error("Error loading existing emails:", error)
+      }
+    }
+
+    loadExistingEmails()
+  }, [])
+
+  // Check for email duplicates
+  const checkEmailDuplicate = (email: string, currentIndex?: number) => {
+    if (!email) return null
+
+    // Check against existing users in database
+    const existingUserIndex = existingEmails.findIndex(existingEmail =>
+      existingEmail.toLowerCase() === email.toLowerCase()
+    )
+
+    if (existingUserIndex !== -1) {
+      return `Email already exists in database`
+    }
+
+    // For bulk mode, check against other mentors in the current list
+    if (isBulkMode && currentIndex !== undefined) {
+      const duplicateIndex = bulkMentors.findIndex((mentor, index) =>
+        index !== currentIndex && mentor.email.toLowerCase() === email.toLowerCase()
+      )
+
+      if (duplicateIndex !== -1) {
+        return `Duplicate email found in Mentor #${duplicateIndex + 1}`
+      }
+    }
+
+    return null
+  }
+
+  // Simplified progress - only show current step for current account
+  const setCurrentStep = (title: string, status: 'in-progress' | 'completed' | 'error', details?: string) => {
+    const timestamp = new Date().toLocaleTimeString()
+    setProgressSteps([{
+      id: 'current-step',
+      title,
+      status,
+      details,
+      timestamp
+    }])
+  }
+
+  const initializeProgress = () => {
+    setProgressSteps([])
+    setCurrentMentorBeingCreated(null)
+  }
+
+  // Handle email change with real-time validation
+  const handleEmailChange = (email: string, index?: number) => {
+    if (isBulkMode && index !== undefined) {
+      updateBulkMentor(bulkMentors[index].id, 'email', email)
+
+      // Check for duplicates
+      const error = checkEmailDuplicate(email, index)
+      setEmailErrors(prev => ({
+        ...prev,
+        [bulkMentors[index].id]: error || ''
+      }))
+    } else {
+      setNewMentor({ ...newMentor, email })
+
+      // Check for duplicates
+      const error = checkEmailDuplicate(email)
+      setEmailErrors(prev => ({
+        ...prev,
+        'single': error || ''
+      }))
+    }
+  }
+
+  // Generate next mentor ID
+  const generateNextMentorId = async () => {
+    try {
+      const currentYear = new Date().getFullYear()
+      const prefix = `MH${currentYear}`
+
+      // Get all existing mentors to find the highest number
+      const usersRef = ref(db, "users")
+      const snapshot = await get(usersRef)
+
+      let highestNumber = 0
+
+      if (snapshot.exists()) {
+        const usersData = snapshot.val()
+        Object.values(usersData).forEach((user: any) => {
+          if (user.role === "mentor" && user.mentorId) {
+            // Extract number from mentorId like MH2025001 -> 001
+            const match = user.mentorId.match(new RegExp(`^${prefix}(\\d+)$`))
+            if (match) {
+              const number = parseInt(match[1], 10)
+              if (number > highestNumber) {
+                highestNumber = number
+              }
+            }
+          }
+        })
+      }
+
+      // Generate next number with leading zeros (3 digits)
+      const nextNumber = (highestNumber + 1).toString().padStart(3, '0')
+      return `${prefix}${nextNumber}`
+    } catch (error) {
+      console.error("Error generating mentor ID:", error)
+      // Fallback to timestamp-based ID
+      const currentYear = new Date().getFullYear()
+      const timestamp = Date.now().toString().slice(-3)
+      return `MH${currentYear}${timestamp}`
+    }
+  }
+
+  // Generate multiple mentor IDs for bulk creation
+  const generateBulkMentorIds = async (count: number) => {
+    try {
+      const currentYear = new Date().getFullYear()
+      const prefix = `MH${currentYear}`
+
+      // Get all existing mentors to find the highest number
+      const usersRef = ref(db, "users")
+      const snapshot = await get(usersRef)
+
+      let highestNumber = 0
+
+      if (snapshot.exists()) {
+        const usersData = snapshot.val()
+        Object.values(usersData).forEach((user: any) => {
+          if (user.role === "mentor" && user.mentorId) {
+            // Extract number from mentorId like MH2025001 -> 001
+            const match = user.mentorId.match(new RegExp(`^${prefix}(\\d+)$`))
+            if (match) {
+              const number = parseInt(match[1], 10)
+              if (number > highestNumber) {
+                highestNumber = number
+              }
+            }
+          }
+        })
+      }
+
+      // Generate sequential IDs
+      const mentorIds = []
+      for (let i = 1; i <= count; i++) {
+        const nextNumber = (highestNumber + i).toString().padStart(3, '0')
+        mentorIds.push(`${prefix}${nextNumber}`)
+      }
+
+      return mentorIds
+    } catch (error) {
+      console.error("Error generating bulk mentor IDs:", error)
+      // Fallback to timestamp-based IDs
+      const currentYear = new Date().getFullYear()
+      const mentorIds = []
+      for (let i = 0; i < count; i++) {
+        const timestamp = (Date.now() + i).toString().slice(-3)
+        mentorIds.push(`MH${currentYear}${timestamp}`)
+      }
+      return mentorIds
+    }
+  }
+
   // Update admin credentials when name changes for admin+mentor role
   useEffect(() => {
     if (newMentor.role === "admin+mentor" && newMentor.name) {
@@ -104,6 +307,43 @@ export default function AdminUsers() {
       }
     }
   }, [newMentor.name, newMentor.email, newMentor.role])
+
+  // Generate random password
+  const generateRandomPassword = () => {
+    return Math.random().toString(36).slice(-8) +
+      Math.random().toString(36).toUpperCase().slice(-2) +
+      Math.floor(Math.random() * 10) + "!";
+  }
+
+  // Add new mentor to bulk list
+  const addMentorToBulkList = () => {
+    const newId = Date.now().toString()
+    setBulkMentors(prev => [...prev, {
+      id: newId,
+      name: "",
+      email: "",
+      password: generateRandomPassword()
+    }])
+  }
+
+  // Remove mentor from bulk list
+  const removeMentorFromBulkList = (id: string) => {
+    setBulkMentors(prev => prev.filter(mentor => mentor.id !== id))
+  }
+
+  // Update mentor in bulk list
+  const updateBulkMentor = (id: string, field: string, value: string) => {
+    setBulkMentors(prev => prev.map(mentor =>
+      mentor.id === id ? { ...mentor, [field]: value } : mentor
+    ))
+  }
+
+  // Reset bulk mode
+  const resetBulkMode = () => {
+    setBulkMentors([])
+    setIsBulkMode(false)
+    setEmailErrors({})
+  }
   const router = useRouter()
 
   const [filteredMentees, setFilteredMentees] = useState<User[]>([])
@@ -343,7 +583,11 @@ export default function AdminUsers() {
       return
     }
 
-
+    // Check for email errors
+    if (emailErrors['single']) {
+      setError("Please fix email errors before creating user")
+      return
+    }
 
     setError("")
     setIsCreating(true)
@@ -353,12 +597,22 @@ export default function AdminUsers() {
       const adminEmail = auth.currentUser?.email
       const adminUid = auth.currentUser?.uid
 
+      setCreationStatus("Setting up account...");
+
+      // Generate mentor ID if creating a mentor
+      let mentorId = undefined
+      if (newMentor.role === "mentor") {
+        setCreationStatus("Generating mentor ID...");
+        mentorId = await generateNextMentorId()
+        console.log(`Generated mentor ID: ${mentorId}`)
+      }
+
+      setCreationStatus("Creating authentication account...");
       // Create mentor account in Firebase Authentication
       const mentorCredential = await createUserWithEmailAndPassword(auth, newMentor.email, newMentor.password)
       const mentorUser = mentorCredential.user
 
-
-
+      setCreationStatus("Saving user data...");
       // Create user document in Realtime Database
       const userData: any = {
         uid: mentorUser.uid,
@@ -369,29 +623,35 @@ export default function AdminUsers() {
         createdAt: new Date().toISOString(),
       }
 
-
+      // Add mentor ID if it's a mentor
+      if (mentorId) {
+        userData.mentorId = mentorId
+      }
 
       // Save mentor user data
       await set(ref(db, `users/${mentorUser.uid}`), userData)
 
-      // Sign out the newly created account(s)
+      setCreationStatus("Securing session...");
+      // Sign out the newly created account (read-only security process)
       await signOut(auth)
+      console.log(`✓ Auto-signed out new user (security process)`);
 
       // Sign back in as admin
       if (adminEmail) {
         try {
           await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
+          console.log(`✓ Signed back in as admin`);
         } catch (error) {
-          console.error("Error signing back in as admin:", error)
+          console.error("❌ Error signing back in as admin:", error)
         }
       }
+
+      setCreationStatus("Account created successfully!");
 
       // Update local state
       const newMentorUser = { ...userData, uid: mentorUser.uid } as User
       setUsers([...users, newMentorUser])
       setMentors([...mentors, newMentorUser])
-
-
 
       // Store created user data for success dialog
       setCreatedUser(newMentorUser)
@@ -426,6 +686,172 @@ export default function AdminUsers() {
     } catch (error: any) {
       console.error("Error creating user:", error)
       setError(error.message || "Failed to create user")
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  // Handle bulk mentor creation
+  const handleCreateBulkMentors = async () => {
+    console.log("Starting bulk mentor creation...");
+
+    // Validate all mentors
+    const invalidMentors = bulkMentors.filter(mentor => !mentor.name || !mentor.email || !mentor.password)
+    if (invalidMentors.length > 0) {
+      setError("Please fill all fields for all mentors")
+      return
+    }
+
+    // Check for email errors
+    const hasEmailErrors = bulkMentors.some(mentor => emailErrors[mentor.id])
+    if (hasEmailErrors) {
+      setError("Please fix all email errors before creating mentors")
+      return
+    }
+
+    // Validate admin password
+    if (!adminPassword) {
+      setError("Admin password is required")
+      return
+    }
+
+    setError("")
+    setIsCreating(true)
+
+    try {
+      // Store current admin credentials
+      const adminEmail = auth.currentUser?.email
+      const adminUid = auth.currentUser?.uid
+      const createdMentors: User[] = []
+
+      console.log(`Creating ${bulkMentors.length} mentors...`);
+
+      // Generate mentor IDs first
+      setCurrentStep('Generating mentor IDs...', 'in-progress', `Creating ${bulkMentors.length} sequential mentor IDs`);
+      const mentorIds = await generateBulkMentorIds(bulkMentors.length)
+      console.log(`Generated mentor IDs:`, mentorIds);
+      setCurrentStep('Mentor IDs generated', 'completed', `Generated IDs: ${mentorIds.join(', ')}`);
+
+      await new Promise(resolve => setTimeout(resolve, 800)); // Small delay to show completion
+
+      // Create each mentor
+      for (let i = 0; i < bulkMentors.length; i++) {
+        const mentorData = bulkMentors[i];
+        const mentorId = mentorIds[i];
+
+        setCurrentMentorBeingCreated({
+          name: mentorData.name,
+          email: mentorData.email,
+          mentorId: mentorId
+        });
+
+        setCreationProgress({ current: i, total: bulkMentors.length });
+
+        console.log(`Creating mentor ${i + 1}: ${mentorData.name} (${mentorData.email}) - ID: ${mentorId}`);
+
+        try {
+          // Step 1: Create auth account
+          setCurrentStep(`Creating account for ${mentorData.name}`, 'in-progress', `Setting up authentication...`);
+          const mentorCredential = await createUserWithEmailAndPassword(auth, mentorData.email, mentorData.password)
+          const mentorUser = mentorCredential.user
+          console.log(`✓ Created auth account for ${mentorData.name}`);
+
+          // Step 2: Save user data
+          setCurrentStep(`Saving profile for ${mentorData.name}`, 'in-progress', `Mentor ID: ${mentorId}`);
+          const userData: any = {
+            uid: mentorUser.uid,
+            email: mentorUser.email,
+            name: mentorData.name,
+            role: "mentor",
+            mentorId: mentorId,
+            createdBy: adminUid,
+            createdAt: new Date().toISOString(),
+          }
+
+          await set(ref(db, `users/${mentorUser.uid}`), userData)
+          console.log(`✓ Saved user data for ${mentorData.name} with mentor ID: ${mentorId}`);
+
+          // Step 3: Silent sign out (security process)
+          setCurrentStep(`Securing account for ${mentorData.name}`, 'in-progress', 'Processing security measures...');
+
+          // Ultra-silent signout - absolutely no UI disruption
+          try {
+            // Perform signout without any UI changes or focus loss
+            await new Promise((resolve) => {
+              signOut(auth).then(() => {
+                console.log(`✓ Auto-signed out ${mentorData.name} (security process)`);
+                resolve(true);
+              }).catch((signOutError) => {
+                console.log(`Note: Sign out not needed for ${mentorData.name}`);
+                resolve(true);
+              });
+            });
+          } catch (error) {
+            // Ignore any signout errors to prevent UI disruption
+            console.log(`Note: Signout handled silently for ${mentorData.name}`);
+          }
+
+          // Add to created mentors list
+          createdMentors.push({ ...userData, uid: mentorUser.uid } as User)
+
+          // Step 4: Re-authenticate admin silently (if not last mentor)
+          if (adminEmail && i < bulkMentors.length - 1) {
+            try {
+              await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
+              console.log(`✓ Signed back in as admin for next iteration`);
+            } catch (signInError) {
+              console.log(`Note: Admin already signed in`);
+            }
+          }
+
+          // Show completion for current account
+          setCurrentStep(`Account created for ${mentorData.name}`, 'completed', `Mentor ID: ${mentorId} | Ready to use`);
+          await new Promise(resolve => setTimeout(resolve, 500)); // Brief pause to show completion
+
+        } catch (error: any) {
+          console.error(`❌ Error creating mentor ${mentorData.name}:`, error)
+          setCurrentStep(`Error creating ${mentorData.name}`, 'error', `${error.message}`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Pause on error
+          // Continue with other mentors even if one fails
+        }
+      }
+
+      // Final step: Ensure admin is signed in
+      setCurrentStep('Finalizing process...', 'in-progress', 'Ensuring admin access...');
+      if (auth.currentUser?.email !== adminEmail && adminEmail) {
+        try {
+          await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
+          console.log("✓ Signed back in as admin (final step)");
+        } catch (error) {
+          console.error("❌ Error signing back in as admin:", error);
+        }
+      }
+
+      // Mark as complete
+      setCreationProgress({ current: bulkMentors.length, total: bulkMentors.length });
+      setCurrentStep('All accounts created successfully!', 'completed', `${createdMentors.length} mentor accounts are ready to use`);
+
+      setCurrentMentorBeingCreated(null);
+
+      // Update local state with all created mentors
+      setUsers(prev => [...prev, ...createdMentors])
+      setMentors(prev => [...prev, ...createdMentors])
+
+      // Close dialog and show success
+      setIsDialogOpen(false)
+      resetBulkMode()
+      setAdminPassword("") // Clear admin password
+
+      console.log(`Successfully created ${createdMentors.length} mentors`);
+
+      toast({
+        title: "Bulk mentors created successfully",
+        description: `${createdMentors.length} mentor accounts have been created.`,
+      })
+
+    } catch (error: any) {
+      console.error("Error creating bulk mentors:", error)
+      setError(error.message || "Failed to create mentors")
     } finally {
       setIsCreating(false)
     }
@@ -505,14 +931,31 @@ export default function AdminUsers() {
                 <h1 className="text-3xl font-bold text-gray-800">Manage Users</h1>
                 <p className="text-muted-foreground mt-1">View and manage all users in the system</p>
               </div>
-              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <Dialog open={isDialogOpen} onOpenChange={(open) => {
+                setIsDialogOpen(open);
+                if (!open) {
+                  resetBulkMode();
+                  setNewMentor({
+                    name: "",
+                    email: "",
+                    password: "",
+                    role: "mentor",
+                    adminCredentials: {
+                      email: "",
+                      password: ""
+                    }
+                  });
+                  setError("");
+                  setEmailErrors({});
+                }
+              }}>
                 <DialogTrigger asChild>
                   <Button className="bg-blue-500 hover:bg-blue-600">
                     <UserPlus className="h-4 w-4 mr-2" />
                     Create User
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="sm:max-w-[700px]">
+                <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>
                       Create New {newMentor.role === "mentor" ? "Mentor" : "Admin"}
@@ -527,101 +970,206 @@ export default function AdminUsers() {
                       <div className="bg-red-50 text-red-600 p-4 rounded-lg text-sm mb-6">{error}</div>
                     )}
 
+                    {/* Role Selection */}
                     <div className="space-y-6">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
-                          <Input
-                            id="name"
-                            value={newMentor.name}
-                            onChange={(e) => setNewMentor({ ...newMentor, name: e.target.value })}
-                            placeholder="Enter full name"
-                            className="h-11"
-                          />
-                        </div>
+                      <div className="space-y-3">
+                        <Label htmlFor="role" className="text-sm font-medium">Role</Label>
+                        <Select
+                          value={newMentor.role}
+                          onValueChange={(value) => {
+                            const role = value as "mentor" | "admin" | "admin+mentor";
+                            setNewMentor({ ...newMentor, role });
+                            // Reset bulk mode when role changes
+                            if (role !== "mentor") {
+                              resetBulkMode();
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-11">
+                            <SelectValue placeholder="Select role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mentor">Mentor</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                        <div className="space-y-3">
-                          <Label htmlFor="role" className="text-sm font-medium">Role</Label>
-                          <Select
-                            value={newMentor.role}
-                            onValueChange={(value) => {
-                              const role = value as "mentor" | "admin" | "admin+mentor";
-                              // Generate random password for mentor role
-                              if (role === "mentor" && newMentor.role !== "mentor") {
-                                const randomPassword = Math.random().toString(36).slice(-8) +
-                                  Math.random().toString(36).toUpperCase().slice(-2) +
-                                  Math.floor(Math.random() * 10) + "!";
-                                setNewMentor({
-                                  ...newMentor,
-                                  role,
-                                  password: randomPassword
-                                });
+                      {/* Bulk Mode Toggle for Mentors */}
+                      {newMentor.role === "mentor" && (
+                        <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+                          <div>
+                            <h3 className="font-medium text-blue-900">Bulk Creation Mode</h3>
+                            <p className="text-sm text-blue-700">Create multiple mentors at once</p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant={isBulkMode ? "destructive" : "default"}
+                            onClick={() => {
+                              if (isBulkMode) {
+                                resetBulkMode();
                               } else {
-                                setNewMentor({ ...newMentor, role });
+                                setIsBulkMode(true);
+                                addMentorToBulkList();
                               }
                             }}
                           >
-                            <SelectTrigger className="h-11">
-                              <SelectValue placeholder="Select role" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="mentor">Mentor</SelectItem>
-                              <SelectItem value="admin">Admin</SelectItem>
-                            </SelectContent>
-                          </Select>
+                            {isBulkMode ? "Single Mode" : "Bulk Mode"}
+                          </Button>
                         </div>
-                      </div>
+                      )}
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <Label htmlFor="email" className="text-sm font-medium">Email</Label>
-                          <Input
-                            id="email"
-                            type="email"
-                            value={newMentor.email}
-                            onChange={(e) => setNewMentor({ ...newMentor, email: e.target.value })}
-                            placeholder="Enter email address"
-                            className="h-11"
-                          />
-                        </div>
+                      {/* Single Mentor Creation */}
+                      {!isBulkMode && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
+                            <Input
+                              id="name"
+                              value={newMentor.name}
+                              onChange={(e) => setNewMentor({ ...newMentor, name: e.target.value })}
+                              placeholder="Enter full name"
+                              className="h-11"
+                            />
+                          </div>
 
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center">
-                            <Label htmlFor="password" className="text-sm font-medium">Password</Label>
-                            {newMentor.role === "mentor" && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const randomPassword = Math.random().toString(36).slice(-8) +
-                                    Math.random().toString(36).toUpperCase().slice(-2) +
-                                    Math.floor(Math.random() * 10) + "!";
-                                  setNewMentor({ ...newMentor, password: randomPassword });
-                                }}
-                                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                              >
-                                Generate Random
-                              </button>
+                          <div className="space-y-3">
+                            <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                            <Input
+                              id="email"
+                              type="email"
+                              value={newMentor.email}
+                              onChange={(e) => handleEmailChange(e.target.value)}
+                              placeholder="Enter email address"
+                              className={`h-11 ${emailErrors['single'] ? 'border-red-500 focus:border-red-500' : ''}`}
+                            />
+                            {emailErrors['single'] && (
+                              <p className="text-sm text-red-600 mt-1">{emailErrors['single']}</p>
                             )}
                           </div>
-                          <div className="relative">
-                            <Input
-                              id="password"
-                              type={showPassword ? "text" : "password"}
-                              value={newMentor.password}
-                              onChange={(e) => setNewMentor({ ...newMentor, password: e.target.value })}
-                              placeholder="Enter password"
-                              className="h-11 pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                            >
-                              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                            </button>
+
+                          <div className="space-y-3 md:col-span-2">
+                            <div className="flex justify-between items-center">
+                              <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                              {newMentor.role === "mentor" && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setNewMentor({ ...newMentor, password: generateRandomPassword() });
+                                  }}
+                                  className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                >
+                                  Generate Random
+                                </button>
+                              )}
+                            </div>
+                            <div className="relative">
+                              <Input
+                                id="password"
+                                type={showPassword ? "text" : "password"}
+                                value={newMentor.password}
+                                onChange={(e) => setNewMentor({ ...newMentor, password: e.target.value })}
+                                placeholder="Enter password"
+                                className="h-11 pr-10"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                              >
+                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      )}
+
+                      {/* Bulk Mentor Creation */}
+                      {isBulkMode && newMentor.role === "mentor" && (
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h3 className="text-lg font-medium">Bulk Mentor Creation</h3>
+                            <Button
+                              type="button"
+                              onClick={addMentorToBulkList}
+                              className="bg-green-600 hover:bg-green-700"
+                            >
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add Mentor
+                            </Button>
+                          </div>
+
+                          <div className="space-y-3 max-h-96 overflow-y-auto">
+                            {bulkMentors.map((mentor, index) => (
+                              <div key={mentor.id} className="p-4 border rounded-lg bg-gray-50">
+                                <div className="flex justify-between items-center mb-3">
+                                  <h4 className="font-medium">Mentor {index + 1}</h4>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => removeMentorFromBulkList(mentor.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                  <div>
+                                    <Label className="text-sm font-medium">Name</Label>
+                                    <Input
+                                      value={mentor.name}
+                                      onChange={(e) => updateBulkMentor(mentor.id, "name", e.target.value)}
+                                      placeholder="Enter name"
+                                      className="mt-1"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <Label className="text-sm font-medium">Email</Label>
+                                    <Input
+                                      type="email"
+                                      value={mentor.email}
+                                      onChange={(e) => handleEmailChange(e.target.value, index)}
+                                      placeholder="Enter email"
+                                      className={`mt-1 ${emailErrors[mentor.id] ? 'border-red-500 focus:border-red-500' : ''}`}
+                                    />
+                                    {emailErrors[mentor.id] && (
+                                      <p className="text-sm text-red-600 mt-1">{emailErrors[mentor.id]}</p>
+                                    )}
+                                  </div>
+
+                                  <div>
+                                    <div className="flex justify-between items-center">
+                                      <Label className="text-sm font-medium">Password</Label>
+                                      <button
+                                        type="button"
+                                        onClick={() => updateBulkMentor(mentor.id, "password", generateRandomPassword())}
+                                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                                      >
+                                        Generate
+                                      </button>
+                                    </div>
+                                    <Input
+                                      type="text"
+                                      value={mentor.password}
+                                      onChange={(e) => updateBulkMentor(mentor.id, "password", e.target.value)}
+                                      placeholder="Password"
+                                      className="mt-1"
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+
+                          {bulkMentors.length === 0 && (
+                            <div className="text-center p-8 border-2 border-dashed border-gray-300 rounded-lg">
+                              <p className="text-gray-500">No mentors added yet. Click "Add Mentor" to start.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -629,17 +1177,22 @@ export default function AdminUsers() {
                     <div className="flex gap-3 justify-end w-full">
                       <Button
                         variant="outline"
-                        onClick={() => setIsDialogOpen(false)}
+                        onClick={() => {
+                          setIsDialogOpen(false);
+                          resetBulkMode();
+                          setEmailErrors({});
+                        }}
                         className="px-4 py-2 h-11"
                       >
                         Cancel
                       </Button>
                       <Button
                         onClick={() => setShowPasswordDialog(true)}
-                        disabled={isCreating}
+                        disabled={isCreating || (isBulkMode && bulkMentors.length === 0)}
                         className="bg-blue-600 hover:bg-blue-700 px-4 py-2 h-11"
                       >
-                        {isCreating ? "Creating..." : "Create User"}
+                        {isCreating ? "Creating..." :
+                          isBulkMode ? `Create ${bulkMentors.length} Mentors` : "Create User"}
                       </Button>
                     </div>
                   </DialogFooter>
@@ -647,52 +1200,305 @@ export default function AdminUsers() {
               </Dialog>
 
               {/* Admin Password Dialog */}
-              <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Confirm Your Password</DialogTitle>
-                    <DialogDescription>
-                      Please enter your password to continue. This is needed to sign back in after creating the new account.
+              <Dialog open={showPasswordDialog} onOpenChange={(open) => {
+                setShowPasswordDialog(open);
+                if (!open) {
+                  setAdminPassword("");
+                  setError("");
+                  setCreationStatus("");
+                  setCreationProgress({ current: 0, total: 0 });
+                }
+              }}>
+                <DialogContent className="sm:max-w-lg">
+                  <DialogHeader className="text-center">
+                    <DialogTitle className="flex items-center justify-center gap-2 text-xl">
+                      <Shield className="h-6 w-6 text-blue-600" />
+                      Security Confirmation
+                    </DialogTitle>
+                    <DialogDescription className="text-center mt-2">
+                      {isBulkMode
+                        ? `You are about to create ${bulkMentors.length} mentor accounts. Please confirm your admin password to proceed.`
+                        : "You are about to create a new user account. Please confirm your admin password to proceed."
+                      }
                     </DialogDescription>
                   </DialogHeader>
+
+                  {/* Account Creation Summary */}
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 my-4">
+                    <h4 className="font-medium text-blue-900 mb-2">
+                      {isBulkMode ? "Bulk Creation Summary:" : "Account Details:"}
+                    </h4>
+                    {isBulkMode ? (
+                      <div className="space-y-1 text-sm text-blue-800">
+                        <p>• {bulkMentors.length} mentor accounts will be created</p>
+                        <p>• Sequential mentor IDs will be assigned</p>
+                        <p>• You will remain signed in as admin</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-1 text-sm text-blue-800">
+                        <p>• Name: {newMentor.name}</p>
+                        <p>• Email: {newMentor.email}</p>
+                        <p>• Role: {newMentor.role}</p>
+                        {newMentor.role === "mentor" && <p>• Mentor ID will be auto-assigned</p>}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Creation Process Status */}
+                  {isCreating && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 my-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-600"></div>
+                        <h4 className="font-medium text-yellow-900">Creating Accounts...</h4>
+                      </div>
+                      {creationStatus && (
+                        <p className="text-sm text-yellow-800 mb-2">{creationStatus}</p>
+                      )}
+                      {creationProgress.total > 0 && (
+                        <div className="w-full bg-yellow-200 rounded-full h-2">
+                          <div
+                            className="bg-yellow-600 h-2 rounded-full transition-all duration-300"
+                            style={{ width: `${(creationProgress.current / creationProgress.total) * 100}%` }}
+                          ></div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {error && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 my-4">
+                      <p className="text-sm text-red-600">{error}</p>
+                    </div>
+                  )}
+
                   <div className="space-y-4 py-2">
                     <div className="space-y-2">
-                      <Label htmlFor="admin-password">Your Password</Label>
+                      <Label htmlFor="admin-password" className="text-sm font-medium">
+                        Admin Password <span className="text-red-500">*</span>
+                      </Label>
                       <div className="relative">
                         <Input
                           id="admin-password"
                           type={showPassword ? "text" : "password"}
                           value={adminPassword}
                           onChange={(e) => setAdminPassword(e.target.value)}
-                          className="pr-10"
+                          placeholder="Enter your admin password"
+                          className="pr-10 h-11"
+                          disabled={isCreating}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && adminPassword && !isCreating) {
+                              setShowPasswordDialog(false);
+                              if (isBulkMode) {
+                                handleCreateBulkMentors();
+                              } else {
+                                handleCreateMentor();
+                              }
+                            }
+                          }}
                         />
                         <button
                           type="button"
                           onClick={() => setShowPassword(!showPassword)}
                           className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          disabled={isCreating}
                         >
                           {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                         </button>
                       </div>
+                      <p className="text-xs text-gray-500">
+                        This password is required to maintain your admin session during account creation.
+                      </p>
                     </div>
                   </div>
-                  <DialogFooter>
+
+                  <DialogFooter className="gap-3">
                     <Button
                       variant="outline"
-                      onClick={() => setShowPasswordDialog(false)}
+                      onClick={() => {
+                        setShowPasswordDialog(false);
+                        setAdminPassword("");
+                        setError("");
+                        setCreationStatus("");
+                        setCreationProgress({ current: 0, total: 0 });
+                      }}
+                      disabled={isCreating}
+                      className="h-11"
                     >
                       Cancel
                     </Button>
                     <Button
                       onClick={() => {
+                        if (!adminPassword) {
+                          setError("Please enter your password");
+                          return;
+                        }
                         setShowPasswordDialog(false);
-                        handleCreateMentor();
+                        setShowProgressDialog(true);
+                        initializeProgress();
+
+                        if (isBulkMode) {
+                          handleCreateBulkMentors();
+                        } else {
+                          handleCreateMentor();
+                        }
                       }}
-                      className="bg-blue-600 hover:bg-blue-700"
+                      disabled={!adminPassword || isCreating}
+                      className="bg-blue-600 hover:bg-blue-700 h-11 min-w-[120px]"
                     >
-                      Continue
+                      {isCreating ? (
+                        <div className="flex items-center gap-2">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                          Creating...
+                        </div>
+                      ) : (
+                        <>
+                          <Shield className="h-4 w-4 mr-2" />
+                          {isBulkMode ? `Create ${bulkMentors.length} Accounts` : "Create Account"}
+                        </>
+                      )}
                     </Button>
                   </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Progress Dialog - Always visible during creation */}
+              <Dialog 
+                open={showProgressDialog} 
+                onOpenChange={() => {}} 
+                modal={true}
+              >
+                <DialogContent 
+                  className="sm:max-w-2xl max-h-[80vh] overflow-hidden pointer-events-auto"
+                  onPointerDownOutside={(e) => e.preventDefault()}
+                  onEscapeKeyDown={(e) => e.preventDefault()}
+                  onInteractOutside={(e) => e.preventDefault()}
+                  aria-describedby="progress-description"
+                  role="alertdialog"
+                >
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-3">
+                      <div className="relative">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <div className="absolute inset-0 rounded-full h-6 w-6 border-2 border-blue-200"></div>
+                      </div>
+                      {isBulkMode ? `Creating ${bulkMentors.length} Mentor Accounts` : 'Creating Mentor Account'}
+                    </DialogTitle>
+                    <DialogDescription id="progress-description">
+                      Account creation in progress. Please do not close this window or navigate away. The process will complete automatically.
+                    </DialogDescription>
+                  </DialogHeader>
+
+                  {/* Current Mentor Being Created */}
+                  {currentMentorBeingCreated && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                          <UserPlus className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-medium text-blue-900">{currentMentorBeingCreated.name}</h4>
+                          <p className="text-sm text-blue-700">{currentMentorBeingCreated.email}</p>
+                          {currentMentorBeingCreated.mentorId && (
+                            <p className="text-xs text-blue-600 font-medium">ID: {currentMentorBeingCreated.mentorId}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Overall Progress */}
+                  <div className="mb-6">
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-sm font-medium text-gray-700">Overall Progress</span>
+                      <span className="text-sm text-gray-500">
+                        {creationProgress.current} of {creationProgress.total} accounts
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3">
+                      <div
+                        className="bg-gradient-to-r from-blue-500 to-blue-600 h-3 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${creationProgress.total > 0 ? (creationProgress.current / creationProgress.total) * 100 : 0}%` }}
+                      ></div>
+                    </div>
+                  </div>
+
+                  {/* Current Step Progress */}
+                  <div className="space-y-4">
+                    {progressSteps.length > 0 && (
+                      <div
+                        className={`flex items-start gap-4 p-4 rounded-lg transition-all duration-300 ${progressSteps[0].status === 'completed' ? 'bg-green-50 border border-green-200' :
+                            progressSteps[0].status === 'in-progress' ? 'bg-blue-50 border border-blue-200' :
+                              progressSteps[0].status === 'error' ? 'bg-red-50 border border-red-200' :
+                                'bg-gray-50 border border-gray-200'
+                          }`}
+                      >
+                        {/* Status Icon */}
+                        <div className="flex-shrink-0 mt-1">
+                          {progressSteps[0].status === 'completed' ? (
+                            <div className="h-8 w-8 rounded-full bg-green-500 flex items-center justify-center">
+                              <Check className="h-5 w-5 text-white" />
+                            </div>
+                          ) : progressSteps[0].status === 'in-progress' ? (
+                            <div className="h-8 w-8 rounded-full bg-blue-500 flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                            </div>
+                          ) : progressSteps[0].status === 'error' ? (
+                            <div className="h-8 w-8 rounded-full bg-red-500 flex items-center justify-center">
+                              <span className="text-white text-sm font-bold">!</span>
+                            </div>
+                          ) : (
+                            <div className="h-8 w-8 rounded-full bg-gray-300"></div>
+                          )}
+                        </div>
+
+                        {/* Step Content */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between mb-1">
+                            <h4 className={`text-lg font-medium ${progressSteps[0].status === 'completed' ? 'text-green-800' :
+                                progressSteps[0].status === 'in-progress' ? 'text-blue-800' :
+                                  progressSteps[0].status === 'error' ? 'text-red-800' :
+                                    'text-gray-600'
+                              }`}>
+                              {progressSteps[0].title}
+                            </h4>
+                            {progressSteps[0].timestamp && (
+                              <span className="text-sm text-gray-500">
+                                {progressSteps[0].timestamp}
+                              </span>
+                            )}
+                          </div>
+                          {progressSteps[0].details && (
+                            <p className={`text-sm ${progressSteps[0].status === 'completed' ? 'text-green-600' :
+                                progressSteps[0].status === 'in-progress' ? 'text-blue-600' :
+                                  progressSteps[0].status === 'error' ? 'text-red-600' :
+                                    'text-gray-500'
+                              }`}>
+                              {progressSteps[0].details}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer with completion status */}
+                  {!isCreating && (
+                    <DialogFooter className="mt-6">
+                      <Button
+                        onClick={() => {
+                          setShowProgressDialog(false);
+                          setProgressSteps([]);
+                          setCurrentMentorBeingCreated(null);
+                          setCreationStatus("");
+                          setCreationProgress({ current: 0, total: 0 });
+                        }}
+                        className="w-full bg-green-600 hover:bg-green-700"
+                      >
+                        <Check className="h-4 w-4 mr-2" />
+                        Complete
+                      </Button>
+                    </DialogFooter>
+                  )}
                 </DialogContent>
               </Dialog>
 
@@ -887,6 +1693,9 @@ export default function AdminUsers() {
                                 <div>
                                   <h3 className="font-semibold text-white">{mentor.name}</h3>
                                   <p className="text-blue-100 text-sm">{mentor.email}</p>
+                                  {mentor.mentorId && (
+                                    <p className="text-blue-200 text-xs font-medium">ID: {mentor.mentorId}</p>
+                                  )}
                                 </div>
                               </div>
                               <motion.div
@@ -912,6 +1721,13 @@ export default function AdminUsers() {
                                         <p className="text-xs font-medium text-gray-500">Role</p>
                                         <p className="text-sm font-medium">Mentor</p>
                                       </div>
+
+                                      {mentor.mentorId && (
+                                        <div className="bg-green-50 p-3 rounded-lg">
+                                          <p className="text-xs font-medium text-gray-500">Mentor ID</p>
+                                          <p className="text-sm font-medium text-green-700">{mentor.mentorId}</p>
+                                        </div>
+                                      )}
                                       <div className="bg-blue-50 p-3 rounded-lg">
                                         <p className="text-xs font-medium text-gray-500">Assigned Mentees</p>
                                         <p className="text-sm font-medium">
