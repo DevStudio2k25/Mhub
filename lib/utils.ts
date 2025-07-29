@@ -23,6 +23,8 @@ export function formatDate(date: Date | number | string): string {
 
 export function getRoleBasedRedirect(role: string): string {
   switch (role) {
+    case "super-admin":
+      return "/super-admin/dashboard"
     case "admin":
       return "/admin/dashboard"
     case "mentor":

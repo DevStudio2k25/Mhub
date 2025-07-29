@@ -113,14 +113,14 @@ export default function Login() {
                       <label htmlFor="password" className="text-sm font-medium text-gray-700">
                         Password
                       </label>
-                      <button 
+                      <button
                         type="button"
                         onClick={(e) => {
                           e.preventDefault();
                           setResetEmail(email);
                           setForgotPasswordOpen(true);
                           setResetEmailSent(false);
-                        }} 
+                        }}
                         className="text-xs text-amber-600 hover:text-amber-700"
                       >
                         Forgot password?
@@ -135,8 +135,8 @@ export default function Login() {
                         className="border-amber-200 focus:ring-amber-500"
                         required
                       />
-                      <button 
-                        type="button" 
+                      <button
+                        type="button"
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
                         onClick={() => setShowPassword(!showPassword)}
                       >
@@ -167,6 +167,17 @@ export default function Login() {
                   Please contact your administrator or mentor.
                 </span>
               </div>
+
+              {/* Super Admin Registration Link - Only for first time setup */}
+              <div className="text-center pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-500 mb-2">System Administrator Only</p>
+                <Link
+                  href="/register"
+                  className="text-xs text-red-600 hover:text-red-700 font-medium underline"
+                >
+                  Create Super Admin Account
+                </Link>
+              </div>
             </CardFooter>
           </form>
         </Card>
@@ -186,7 +197,7 @@ export default function Login() {
             )}
             {resetEmailSent ? (
               <DialogDescription>
-                We've sent a password reset link to <span className="font-medium">{resetEmail}</span>. 
+                We've sent a password reset link to <span className="font-medium">{resetEmail}</span>.
                 Please check your email and follow the instructions to reset your password.
               </DialogDescription>
             ) : (
@@ -221,8 +232,8 @@ export default function Login() {
 
           <DialogFooter>
             {resetEmailSent ? (
-              <Button 
-                type="button" 
+              <Button
+                type="button"
                 className="w-full bg-amber-500 hover:bg-amber-600"
                 onClick={() => setForgotPasswordOpen(false)}
               >
@@ -230,25 +241,25 @@ export default function Login() {
               </Button>
             ) : (
               <div className="flex w-full gap-2">
-                <Button 
-                  type="button" 
-                  variant="outline" 
+                <Button
+                  type="button"
+                  variant="outline"
                   className="flex-1"
                   onClick={() => setForgotPasswordOpen(false)}
                 >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Cancel
                 </Button>
-                <Button 
-                  type="button" 
+                <Button
+                  type="button"
                   className="flex-1 bg-amber-500 hover:bg-amber-600"
                   disabled={resetEmailLoading || !resetEmail}
                   onClick={async () => {
                     if (!resetEmail) return;
-                    
+
                     setResetEmailLoading(true);
                     setError("");
-                    
+
                     try {
                       await sendPasswordResetEmail(auth, resetEmail);
                       setResetEmailSent(true);

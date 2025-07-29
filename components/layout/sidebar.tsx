@@ -55,8 +55,38 @@ export default function Sidebar() {
   }
 
   const renderLinks = () => {
+    // Check if we're on a super-admin page
+    const isSuperAdminPage = pathname.startsWith('/super-admin')
     // Check if we're on an admin page
     const isAdminPage = pathname.startsWith('/admin')
+
+    // If we're on a super-admin page and user is super-admin, show only super-admin links
+    if (isSuperAdminPage && userData.role === 'super-admin') {
+      return (
+        <>
+          <Link href="/super-admin/dashboard" className={linkClass("/super-admin/dashboard")}>
+            <BarChart size={20} />
+            <span>Dashboard</span>
+          </Link>
+          <Link href="/super-admin/manage-super-admins" className={linkClass("/super-admin/manage-super-admins")}>
+            <ShieldCheck size={20} />
+            <span>Super Admins</span>
+          </Link>
+          <Link href="/super-admin/manage-admins" className={linkClass("/super-admin/manage-admins")}>
+            <Settings size={20} />
+            <span>Admins</span>
+          </Link>
+          <Link href="/super-admin/all-users" className={linkClass("/super-admin/all-users")}>
+            <Users size={20} />
+            <span>All Users</span>
+          </Link>
+          <Link href="/super-admin/profile" className={linkClass("/super-admin/profile")}>
+            <UserCircle size={20} />
+            <span>My Profile</span>
+          </Link>
+        </>
+      )
+    }
 
     // If we're on an admin page and user has admin access (either admin or admin+mentor), show only admin links
     if (isAdminPage && (userData.role === 'admin' || userData.role === 'admin+mentor')) {
@@ -84,6 +114,31 @@ export default function Sidebar() {
 
     // For non-admin pages, show role-specific links
     switch (userData.role) {
+      case "super-admin":
+        return (
+          <>
+            <Link href="/super-admin/dashboard" className={linkClass("/super-admin/dashboard")}>
+              <BarChart size={20} />
+              <span>Dashboard</span>
+            </Link>
+            <Link href="/super-admin/manage-super-admins" className={linkClass("/super-admin/manage-super-admins")}>
+              <ShieldCheck size={20} />
+              <span>Super Admins</span>
+            </Link>
+            <Link href="/super-admin/manage-admins" className={linkClass("/super-admin/manage-admins")}>
+              <Settings size={20} />
+              <span>Admins</span>
+            </Link>
+            <Link href="/super-admin/all-users" className={linkClass("/super-admin/all-users")}>
+              <Users size={20} />
+              <span>All Users</span>
+            </Link>
+            <Link href="/super-admin/profile" className={linkClass("/super-admin/profile")}>
+              <UserCircle size={20} />
+              <span>My Profile</span>
+            </Link>
+          </>
+        )
       case "admin":
         return (
           <>

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react"
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage"
-import { ref as dbRef, get, update } from "firebase/database"
+import { doc, getDoc, updateDoc } from "firebase/firestore"
 import { db, storage } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
@@ -10,9 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { 
-  Camera, Check, Edit, User, X, ShieldCheck, GraduationCap, 
-  Mail, Phone, BookOpen, School, UserCog, UserCheck, Calendar, 
+import {
+  Camera, Check, Edit, User, X, ShieldCheck, GraduationCap,
+  Mail, Phone, BookOpen, School, UserCog, UserCheck, Calendar,
   Building, MapPin, Briefcase, Users
 } from "lucide-react"
 import Image from "next/image"
@@ -52,14 +52,34 @@ export default function ProfilePage() {
       if (!userData) return
 
       try {
-        // Fetch user data from Realtime Database
-        const userRef = dbRef(db, `users/${userData.uid}`)
-        const snapshot = await get(userRef)
+        // Fetch user data from appropriate collection based on role
+        let userDoc
 
-        if (snapshot.exists()) {
-          const profileData = {
+        if (userData.role === "super-admin") {
+          userDoc = await getDoc(doc(db, "super-admins", userData.uid))
+        } else if (userData.role === "admin") {
+          userDoc = await getDoc(doc(db, "admins", userData.uid))
+        } else {
+          // For mentors and mentees, we'll use users collection (to be migrated later)
+          userDoc = await getDoc(doc(db, "users", userData.uid))
+        }
+
+        if (userDoc && userDoc.exists()) {
+          const data = userDoc.data()
+          const profileData: UserProfile = {
             uid: userData.uid,
-            ...snapshot.val()
+            name: data?.name || "Unknown",
+            email: data?.email || userData.email || "",
+            role: data?.role || userData.role,
+            photoURL: data?.photoURL,
+            enrollmentNo: data?.enrollmentNo,
+            class: data?.class,
+            year: data?.year,
+            section: data?.section,
+            classId: data?.classId,
+            assignedMentorId: data?.assignedMentorId,
+            parentName: data?.parentName,
+            parentMobile: data?.parentMobile
           }
           setProfile(profileData)
           setEditedProfile(profileData)
@@ -99,40 +119,47 @@ export default function ProfilePage() {
     setSuccess("")
 
     try {
-      // Update user data in Realtime Database
-      const userRef = dbRef(db, `users/${profile.uid}`)
-      
+      // Update user data in appropriate collection
+      let collectionName = "users"
+      if (profile.role === "super-admin") {
+        collectionName = "super-admins"
+      } else if (profile.role === "admin") {
+        collectionName = "admins"
+      }
+
+      const userRef = doc(db, collectionName, profile.uid)
+
       // Only update fields that have changed
       const updates: Partial<UserProfile> = {}
-      
+
       if (editedProfile.name !== profile.name) updates.name = editedProfile.name
-      
+
       // For mentees, update additional fields
       if (profile.role === "mentee") {
-        if (editedProfile.enrollmentNo !== profile.enrollmentNo) 
+        if (editedProfile.enrollmentNo !== profile.enrollmentNo)
           updates.enrollmentNo = editedProfile.enrollmentNo
-        if (editedProfile.class !== profile.class) 
+        if (editedProfile.class !== profile.class)
           updates.class = editedProfile.class
-        if (editedProfile.year !== profile.year) 
+        if (editedProfile.year !== profile.year)
           updates.year = editedProfile.year
-        if (editedProfile.section !== profile.section) 
+        if (editedProfile.section !== profile.section)
           updates.section = editedProfile.section
       }
 
       if (Object.keys(updates).length > 0) {
-        await update(userRef, updates)
-        
+        await updateDoc(userRef, updates)
+
         // Update local state
         setProfile({
           ...profile,
           ...updates
         })
-        
+
         setSuccess("Profile updated successfully")
       } else {
         setSuccess("No changes to save")
       }
-      
+
       setIsEditing(false)
     } catch (error) {
       console.error("Error updating profile:", error)
@@ -150,7 +177,7 @@ export default function ProfilePage() {
 
   const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!profile) return
-    
+
     const file = e.target.files?.[0]
     if (!file) return
 
@@ -162,20 +189,27 @@ export default function ProfilePage() {
       // Upload image to Firebase Storage
       const imageRef = storageRef(storage, `profile-images/${profile.uid}`)
       await uploadBytes(imageRef, file)
-      
+
       // Get download URL
       const downloadURL = await getDownloadURL(imageRef)
-      
-      // Update user data in Realtime Database
-      const userRef = dbRef(db, `users/${profile.uid}`)
-      await update(userRef, { photoURL: downloadURL })
-      
+
+      // Update user data in appropriate collection
+      let collectionName = "users"
+      if (profile.role === "super-admin") {
+        collectionName = "super-admins"
+      } else if (profile.role === "admin") {
+        collectionName = "admins"
+      }
+
+      const userRef = doc(db, collectionName, profile.uid)
+      await updateDoc(userRef, { photoURL: downloadURL })
+
       // Update local state
       setProfile({
         ...profile,
         photoURL: downloadURL
       })
-      
+
       setSuccess("Profile image updated successfully")
     } catch (error) {
       console.error("Error uploading image:", error)
@@ -211,9 +245,9 @@ export default function ProfilePage() {
                     {profile.name}
                   </CardTitle>
                   {!isEditing && (
-                    <Button 
-                      onClick={handleEdit} 
-                      variant="ghost" 
+                    <Button
+                      onClick={handleEdit}
+                      variant="ghost"
                       className="text-white hover:bg-white/20"
                     >
                       <Edit className="h-4 w-4 mr-2" />
@@ -366,7 +400,7 @@ export default function ProfilePage() {
                             )}
                           </div>
                         </div>
-                        
+
                         {profile.parentName && profile.parentMobile && (
                           <div className="grid md:grid-cols-2 gap-6">
                             <div>
@@ -403,8 +437,8 @@ export default function ProfilePage() {
                             Mentees
                           </Label>
                           <div className="mt-1 p-3 bg-amber-50 rounded-md font-medium">
-                            <Button 
-                              variant="link" 
+                            <Button
+                              variant="link"
                               className="p-0 h-auto text-amber-600 hover:text-amber-800"
                               onClick={() => router.push('/mentor/mentees')}
                             >
@@ -430,8 +464,8 @@ export default function ProfilePage() {
                             System Users
                           </Label>
                           <div className="mt-1 p-3 bg-amber-50 rounded-md font-medium">
-                            <Button 
-                              variant="link" 
+                            <Button
+                              variant="link"
                               className="p-0 h-auto text-amber-600 hover:text-amber-800"
                               onClick={() => router.push('/admin/users')}
                             >
@@ -441,18 +475,18 @@ export default function ProfilePage() {
                         </div>
                       </div>
                     )}
-                    
+
                     {isEditing && (
                       <div className="flex justify-end gap-2 mt-6">
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           onClick={handleCancel}
                           className="flex items-center gap-1"
                         >
                           <X className="h-4 w-4" />
                           Cancel
                         </Button>
-                        <Button 
+                        <Button
                           onClick={handleSave}
                           className="bg-amber-500 hover:bg-amber-600 flex items-center gap-1"
                           disabled={saving}

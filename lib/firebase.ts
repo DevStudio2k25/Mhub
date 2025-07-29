@@ -1,24 +1,23 @@
 // Firebase configuration
 import { initializeApp, getApps } from "firebase/app"
 import { getAuth } from "firebase/auth"
-import { getDatabase } from "firebase/database"
+import { getFirestore } from "firebase/firestore"
 import { getStorage } from "firebase/storage"
 
 const firebaseConfig = {
-  apiKey: "AIzaSyB84FXYSgsCnPzUsJDEW_OLgNTBUfSxqV4",
-  authDomain: "the-e-commerce-web.firebaseapp.com",
-  databaseURL: "https://the-e-commerce-web-default-rtdb.firebaseio.com",
-  projectId: "the-e-commerce-web",
-  storageBucket: "the-e-commerce-web.firebasestorage.app",
-  messagingSenderId: "468604550726",
-  appId: "1:468604550726:web:41f9f552ccf0e017e0d447",
-  measurementId: "G-QRHXY36BZ8"
+  apiKey: "AIzaSyAucdOZ659enQK0Vlg2MEx7eJmLFcUxVYg",
+  authDomain: "movies-35801.firebaseapp.com",
+  projectId: "movies-35801",
+  storageBucket: "movies-35801.appspot.com",
+  messagingSenderId: "1006618170751",
+  appId: "1:1006618170751:web:d5d28ad8030ad30740364a",
+  measurementId: "G-0ZPKR7PWQ2"
 }
 
 // Initialize Firebase
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0]
 const auth = getAuth(app)
-const db = getDatabase(app)
+const db = getFirestore(app)
 const storage = getStorage(app)
 
 export { app, auth, db, storage }

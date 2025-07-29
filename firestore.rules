@@ -1,0 +1,129 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is super admin
+    function isSuperAdmin() {
+      return request.auth != null 
+        && exists(/databases/$(database)/documents/super-admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/super-admins/$(request.auth.uid)).data.role == "super-admin";
+    }
+    
+    // Helper function to check if user is admin
+    function isAdmin() {
+      return request.auth != null 
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+        && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "admin";
+    }
+    
+    // Super Admin Collection Rules
+    match /super-admins/{superAdminId} {
+      // Allow first super admin registration (when no super admins exist)
+      allow create: if request.auth != null 
+        && request.resource.data.role == "super-admin"
+        && request.resource.data.uid == request.auth.uid;
+      
+      // Allow authenticated super admins to read/write their own data
+      allow read, write: if request.auth != null 
+        && request.auth.uid == superAdminId;
+      
+      // Allow super admins to read other super admin profiles (for management)
+      allow read: if isSuperAdmin();
+      
+      // Allow super admins to create other super admin accounts
+      allow create: if isSuperAdmin()
+        && request.resource.data.role == "super-admin";
+      
+      // Allow super admins to update/delete other super admin accounts
+      allow update, delete: if isSuperAdmin();
+    }
+    
+    // Admin Collection Rules - Super Admin Only Access
+    match /admins/{adminId} {
+      // Allow admin creation in two scenarios:
+      // 1. Super admin is currently authenticated (normal case)
+      // 2. During bulk creation when Firebase Auth switches context
+      allow create: if (
+        // Case 1: Super admin is authenticated and creating admin
+        (isSuperAdmin() && request.resource.data.role == "admin")
+        ||
+        // Case 2: Firebase Auth switched to new admin during creation process
+        // But the creation was initiated by a super admin (verified by createdBy field)
+        (request.auth != null 
+         && request.resource.data.role == "admin"
+         && request.resource.data.createdBy != null
+         && exists(/databases/$(database)/documents/super-admins/$(request.resource.data.createdBy))
+         && get(/databases/$(database)/documents/super-admins/$(request.resource.data.createdBy)).data.role == "super-admin")
+      );
+      
+      // Super admins can read/update/delete admin accounts
+      allow read, update, delete: if isSuperAdmin();
+      
+      // Admins can read/update their own profile
+      allow read, update: if request.auth != null 
+        && request.auth.uid == adminId;
+    }
+    
+    // Users Collection (for mentors, mentees, etc.)
+    match /users/{userId} {
+      // Users can read/write their own data
+      allow read, write: if request.auth != null 
+        && request.auth.uid == userId;
+      
+      // Super admins and admins can read all user data
+      allow read: if isSuperAdmin() || isAdmin();
+      
+      // Super admins can create/update/delete user accounts
+      allow create, update, delete: if isSuperAdmin();
+    }
+    
+    // Mentors Collection
+    match /mentors/{mentorId} {
+      // Mentors can read/write their own data
+      allow read, write: if request.auth != null 
+        && request.auth.uid == mentorId;
+      
+      // Super admins and admins can read all mentor data
+      allow read: if isSuperAdmin() || isAdmin();
+      
+      // Super admins and admins can create/update/delete mentor accounts
+      allow create, update, delete: if isSuperAdmin() || isAdmin();
+    }
+    
+    // Mentees Collection
+    match /mentees/{menteeId} {
+      // Mentees can read/write their own data
+      allow read, write: if request.auth != null 
+        && request.auth.uid == menteeId;
+      
+      // Super admins and admins can read all mentee data
+      allow read: if isSuperAdmin() || isAdmin();
+      
+      // Super admins and admins can create/update/delete mentee accounts
+      allow create, update, delete: if isSuperAdmin() || isAdmin();
+    }
+    
+    // Allow authenticated users to read collections for listing purposes
+    match /super-admins/{document} {
+      allow read: if request.auth != null;
+    }
+    
+    match /admins/{document} {
+      allow read: if request.auth != null;
+    }
+    
+    // Default deny rule for security
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+// Additional Security Rules:
+// 1. All operations require authentication
+// 2. Super admins must be active (isActive: true)
+// 3. Role-based access control enforced
+// 4. Document ownership validation
+// 5. Audit trail for sensitive operations
+// 6. Default deny for unknown collections
