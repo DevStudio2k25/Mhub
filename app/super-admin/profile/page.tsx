@@ -124,7 +124,6 @@ export default function SuperAdminProfile() {
             if (editedProfile.name !== profile.name) updates.name = editedProfile.name
             if (editedProfile.phone !== profile.phone) updates.phone = editedProfile.phone
             if (editedProfile.address !== profile.address) updates.address = editedProfile.address
-            if (editedProfile.department !== profile.department) updates.department = editedProfile.department
 
             if (Object.keys(updates).length > 0) {
                 updates.lastUpdated = new Date().toISOString()
@@ -199,11 +198,11 @@ export default function SuperAdminProfile() {
 
     return (
         <DashboardLayout>
-            <div className="container mx-auto py-8 px-6">
-                <div className="max-w-4xl mx-auto space-y-6">
+            <div className="container mx-auto py-4 sm:py-6 lg:py-8 px-4 sm:px-6">
+                <div className="max-w-5xl mx-auto space-y-4 sm:space-y-6">
                     {loading ? (
                         <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                            <CardContent className="p-8 text-center">
+                            <CardContent className="p-6 sm:p-8 text-center">
                                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-red-500 mx-auto"></div>
                                 <p className="mt-4 text-gray-600">Loading profile...</p>
                             </CardContent>
@@ -211,123 +210,134 @@ export default function SuperAdminProfile() {
                     ) : profile ? (
                         <>
                             {/* Main Profile Card */}
-                            <Card className="border-0 shadow-2xl rounded-2xl overflow-hidden">
-                                <CardHeader className="bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white pb-12">
-                                    <div className="flex justify-between items-start">
-                                        <div className="flex items-center gap-4">
-                                            <div className="bg-white/20 p-3 rounded-full">
-                                                <Shield className="h-8 w-8" />
-                                            </div>
-                                            <div>
-                                                <CardTitle className="text-3xl font-bold">{profile.name}</CardTitle>
-                                                <div className="flex items-center gap-2 mt-2">
-                                                    <Badge className="bg-white/20 text-white border-white/30">
-                                                        Super Administrator
-                                                    </Badge>
-                                                    <Badge className={`${profile.isActive ? 'bg-green-500' : 'bg-red-500'} text-white`}>
-                                                        {profile.isActive ? (
-                                                            <><CheckCircle className="h-3 w-3 mr-1" /> Active</>
-                                                        ) : (
-                                                            <><AlertCircle className="h-3 w-3 mr-1" /> Inactive</>
-                                                        )}
-                                                    </Badge>
-                                                </div>
+                            <Card className="border-0 shadow-2xl rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-3xl">
+                                <CardHeader className="bg-gradient-to-r from-red-600 via-red-500 to-orange-500 text-white pb-8 sm:pb-12">
+                                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+                                        <div className="bg-white/20 p-2 sm:p-3 rounded-full flex-shrink-0">
+                                            <Shield className="h-6 w-6 sm:h-8 sm:w-8" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <CardTitle className="text-lg sm:text-xl lg:text-2xl font-bold break-words">{profile.name}</CardTitle>
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-2">
+                                                <Badge className="bg-white/20 text-white border-white/30 text-xs">
+                                                    Super Administrator
+                                                </Badge>
+                                                <Badge className={`${profile.isActive ? 'bg-green-500' : 'bg-red-500'} text-white text-xs`}>
+                                                    {profile.isActive ? (
+                                                        <><CheckCircle className="h-3 w-3 mr-1" /> Active</>
+                                                    ) : (
+                                                        <><AlertCircle className="h-3 w-3 mr-1" /> Inactive</>
+                                                    )}
+                                                </Badge>
                                             </div>
                                         </div>
-                                        {!isEditing && (
-                                            <Button
-                                                onClick={handleEdit}
-                                                variant="ghost"
-                                                className="text-white hover:bg-white/20 border border-white/30"
-                                            >
-                                                <Edit className="h-4 w-4 mr-2" />
-                                                Edit Profile
-                                            </Button>
-                                        )}
                                     </div>
                                 </CardHeader>
 
                                 <CardContent className="p-0">
-                                    <div className="relative -mt-16 px-8">
-                                        <div className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-xl mx-auto bg-white">
-                                            {profile.photoURL ? (
-                                                <Image
-                                                    src={profile.photoURL}
-                                                    alt={profile.name}
-                                                    fill
-                                                    className="object-cover"
+                                    <div className="relative -mt-12 sm:-mt-16 px-4 sm:px-8">
+                                        <div className="flex flex-col items-center">
+                                            <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-full overflow-hidden border-4 border-white shadow-xl bg-white transition-all duration-300 hover:scale-105">
+                                                {profile.photoURL ? (
+                                                    <Image
+                                                        src={profile.photoURL}
+                                                        alt={profile.name}
+                                                        fill
+                                                        className="object-cover transition-transform duration-300"
+                                                    />
+                                                ) : (
+                                                    <div className="w-full h-full flex items-center justify-center bg-red-100 text-red-800">
+                                                        <User className="h-12 w-12 sm:h-16 sm:w-16" />
+                                                    </div>
+                                                )}
+                                                <button
+                                                    onClick={handleImageClick}
+                                                    className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-all duration-300 group"
+                                                >
+                                                    <Camera className="h-6 w-6 sm:h-8 sm:w-8 text-white group-hover:scale-110 transition-transform duration-200" />
+                                                </button>
+                                                <input
+                                                    type="file"
+                                                    ref={fileInputRef}
+                                                    onChange={handleImageChange}
+                                                    accept="image/*"
+                                                    className="hidden"
                                                 />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-red-100 text-red-800">
-                                                    <User className="h-16 w-16" />
-                                                </div>
+                                            </div>
+                                            {!isEditing && (
+                                                <Button
+                                                    onClick={handleEdit}
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="mt-3 bg-white hover:bg-gray-50 border-gray-300 text-gray-700 transition-all duration-200"
+                                                >
+                                                    <Edit className="h-3 w-3 mr-1" />
+                                                    <span className="text-xs">Edit</span>
+                                                </Button>
                                             )}
-                                            <button
-                                                onClick={handleImageClick}
-                                                className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity"
-                                            >
-                                                <Camera className="h-8 w-8 text-white" />
-                                            </button>
-                                            <input
-                                                type="file"
-                                                ref={fileInputRef}
-                                                onChange={handleImageChange}
-                                                accept="image/*"
-                                                className="hidden"
-                                            />
                                         </div>
                                         {uploadingImage && (
-                                            <div className="mt-4 text-center">
+                                            <div className="mt-4 text-center animate-fade-in">
                                                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-red-500 mx-auto"></div>
                                                 <p className="text-xs text-gray-500 mt-1">Uploading image...</p>
                                             </div>
                                         )}
                                     </div>
 
-                                    <div className="p-8 pt-6">
-                                        {error && <div className="p-3 mb-4 text-sm text-white bg-red-500 rounded-md">{error}</div>}
-                                        {success && <div className="p-3 mb-4 text-sm text-white bg-green-500 rounded-md">{success}</div>}
+                                    <div className="p-4 sm:p-6 lg:p-8 pt-4 sm:pt-6">
+                                        {error && (
+                                            <div className="p-3 mb-4 text-sm text-white bg-red-500 rounded-lg shadow-lg animate-slide-down">
+                                                {error}
+                                            </div>
+                                        )}
+                                        {success && (
+                                            <div className="p-3 mb-4 text-sm text-white bg-green-500 rounded-lg shadow-lg animate-slide-down">
+                                                {success}
+                                            </div>
+                                        )}
 
-                                        <div className="grid gap-8">
+                                        <div className="grid gap-4 sm:gap-6 lg:gap-8">
                                             {/* Personal Information */}
-                                            <div className="bg-gray-50 rounded-xl p-6">
-                                                <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                                                    <User className="h-5 w-5 text-red-600" />
-                                                    Personal Information
+                                            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-4 sm:p-6 transition-all duration-300 hover:shadow-md">
+                                                <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                                    <User className="h-4 w-4 text-red-600 flex-shrink-0" />
+                                                    <span>Personal Information</span>
                                                 </h3>
 
-                                                <div className="grid md:grid-cols-2 gap-6">
-                                                    <div>
-                                                        <Label htmlFor="name" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <User className="h-4 w-4 text-red-500" />
-                                                            Full Name
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="name" className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <User className="h-3 w-3 text-red-500 flex-shrink-0" />
+                                                            <span>Full Name</span>
                                                         </Label>
                                                         {isEditing ? (
                                                             <Input
                                                                 id="name"
                                                                 value={editedProfile.name || ""}
                                                                 onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
-                                                                className="mt-2 border-gray-300 focus:border-red-500 focus:ring-red-500"
+                                                                className="text-sm transition-all duration-200 border-gray-300 focus:border-red-500 focus:ring-red-500 focus:ring-2"
                                                             />
                                                         ) : (
-                                                            <div className="mt-2 p-3 bg-white rounded-lg border font-medium">{profile.name}</div>
+                                                            <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md break-words">
+                                                                {profile.name}
+                                                            </div>
                                                         )}
                                                     </div>
 
-                                                    <div>
-                                                        <Label htmlFor="email" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <Mail className="h-4 w-4 text-red-500" />
-                                                            Email Address
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="email" className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <Mail className="h-3 w-3 text-red-500 flex-shrink-0" />
+                                                            <span>Email Address</span>
                                                         </Label>
-                                                        <div className="mt-2 p-3 bg-white rounded-lg border font-medium text-gray-600">
+                                                        <div className="p-2 bg-white rounded-lg border text-sm text-gray-600 shadow-sm transition-all duration-200 hover:shadow-md break-all">
                                                             {profile.email || "N/A"}
                                                         </div>
                                                     </div>
 
-                                                    <div>
-                                                        <Label htmlFor="phone" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <Phone className="h-4 w-4 text-red-500" />
-                                                            Phone Number
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="phone" className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <Phone className="h-3 w-3 text-red-500 flex-shrink-0" />
+                                                            <span>Phone Number</span>
                                                         </Label>
                                                         {isEditing ? (
                                                             <Input
@@ -335,19 +345,19 @@ export default function SuperAdminProfile() {
                                                                 value={editedProfile.phone || ""}
                                                                 onChange={(e) => setEditedProfile({ ...editedProfile, phone: e.target.value })}
                                                                 placeholder="Enter phone number"
-                                                                className="mt-2 border-gray-300 focus:border-red-500 focus:ring-red-500"
+                                                                className="text-sm transition-all duration-200 border-gray-300 focus:border-red-500 focus:ring-red-500 focus:ring-2"
                                                             />
                                                         ) : (
-                                                            <div className="mt-2 p-3 bg-white rounded-lg border font-medium">
+                                                            <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md">
                                                                 {profile.phone || "Not provided"}
                                                             </div>
                                                         )}
                                                     </div>
 
-                                                    <div>
-                                                        <Label htmlFor="address" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <MapPin className="h-4 w-4 text-red-500" />
-                                                            Address
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="address" className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <MapPin className="h-3 w-3 text-red-500 flex-shrink-0" />
+                                                            <span>Address</span>
                                                         </Label>
                                                         {isEditing ? (
                                                             <Input
@@ -355,10 +365,10 @@ export default function SuperAdminProfile() {
                                                                 value={editedProfile.address || ""}
                                                                 onChange={(e) => setEditedProfile({ ...editedProfile, address: e.target.value })}
                                                                 placeholder="Enter address"
-                                                                className="mt-2 border-gray-300 focus:border-red-500 focus:ring-red-500"
+                                                                className="text-sm transition-all duration-200 border-gray-300 focus:border-red-500 focus:ring-red-500 focus:ring-2"
                                                             />
                                                         ) : (
-                                                            <div className="mt-2 p-3 bg-white rounded-lg border font-medium">
+                                                            <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md break-words">
                                                                 {profile.address || "Not provided"}
                                                             </div>
                                                         )}
@@ -367,59 +377,39 @@ export default function SuperAdminProfile() {
                                             </div>
 
                                             {/* System Information */}
-                                            <div className="bg-blue-50 rounded-xl p-6">
-                                                <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                                                    <Shield className="h-5 w-5 text-blue-600" />
-                                                    System Information
+                                            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 sm:p-6 transition-all duration-300 hover:shadow-md">
+                                                <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                                    <Shield className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                                    <span>System Information</span>
                                                 </h3>
 
-                                                <div className="grid md:grid-cols-2 gap-6">
-                                                    <div>
-                                                        <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <Key className="h-4 w-4 text-blue-500" />
-                                                            Super Admin ID
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                                    <div className="space-y-1">
+                                                        <Label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <Key className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                                                            <span>Super Admin ID</span>
                                                         </Label>
-                                                        <div className="mt-2 p-3 bg-white rounded-lg border font-mono font-bold text-blue-600">
+                                                        <div className="p-2 bg-white rounded-lg border font-mono font-bold text-blue-600 shadow-sm transition-all duration-200 hover:shadow-md break-all text-xs">
                                                             {profile.superAdminId}
                                                         </div>
                                                     </div>
 
-                                                    <div>
-                                                        <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <Building className="h-4 w-4 text-blue-500" />
-                                                            Organization
+                                                    <div className="space-y-1">
+                                                        <Label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <Building className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                                                            <span>Organization</span>
                                                         </Label>
-                                                        <div className="mt-2 p-3 bg-white rounded-lg border font-medium">
+                                                        <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md break-words">
                                                             {profile.organization || "UEM College"}
                                                         </div>
                                                     </div>
 
-                                                    <div>
-                                                        <Label htmlFor="department" className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <Briefcase className="h-4 w-4 text-blue-500" />
-                                                            Department
+                                                    <div className="space-y-1">
+                                                        <Label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <UserCog className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                                                            <span>Role</span>
                                                         </Label>
-                                                        {isEditing ? (
-                                                            <Input
-                                                                id="department"
-                                                                value={editedProfile.department || ""}
-                                                                onChange={(e) => setEditedProfile({ ...editedProfile, department: e.target.value })}
-                                                                placeholder="Enter department"
-                                                                className="mt-2 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
-                                                            />
-                                                        ) : (
-                                                            <div className="mt-2 p-3 bg-white rounded-lg border font-medium">
-                                                                {profile.department || "Information Technology"}
-                                                            </div>
-                                                        )}
-                                                    </div>
-
-                                                    <div>
-                                                        <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <UserCog className="h-4 w-4 text-blue-500" />
-                                                            Role
-                                                        </Label>
-                                                        <div className="mt-2 p-3 bg-white rounded-lg border font-medium capitalize">
+                                                        <div className="p-2 bg-white rounded-lg border text-sm capitalize shadow-sm transition-all duration-200 hover:shadow-md">
                                                             Super Administrator
                                                         </div>
                                                     </div>
@@ -427,50 +417,50 @@ export default function SuperAdminProfile() {
                                             </div>
 
                                             {/* Account Activity */}
-                                            <div className="bg-green-50 rounded-xl p-6">
-                                                <h3 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                                                    <Clock className="h-5 w-5 text-green-600" />
-                                                    Account Activity
+                                            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 sm:p-6 transition-all duration-300 hover:shadow-md">
+                                                <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                                    <Clock className="h-4 w-4 text-green-600 flex-shrink-0" />
+                                                    <span>Account Activity</span>
                                                 </h3>
 
-                                                <div className="grid md:grid-cols-2 gap-6">
-                                                    <div>
-                                                        <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <Calendar className="h-4 w-4 text-green-500" />
-                                                            Account Created
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                                    <div className="space-y-1">
+                                                        <Label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <Calendar className="h-3 w-3 text-green-500 flex-shrink-0" />
+                                                            <span>Account Created</span>
                                                         </Label>
-                                                        <div className="mt-2 p-3 bg-white rounded-lg border font-medium">
+                                                        <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md">
                                                             {formatDate(profile.createdAt)}
                                                         </div>
                                                     </div>
 
-                                                    <div>
-                                                        <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <Clock className="h-4 w-4 text-green-500" />
-                                                            Last Login
+                                                    <div className="space-y-1">
+                                                        <Label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <Clock className="h-3 w-3 text-green-500 flex-shrink-0" />
+                                                            <span>Last Login</span>
                                                         </Label>
-                                                        <div className="mt-2 p-3 bg-white rounded-lg border font-medium">
+                                                        <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md">
                                                             {profile.lastLogin ? formatDate(profile.lastLogin) : "Never"}
                                                         </div>
                                                     </div>
 
-                                                    <div>
-                                                        <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <User className="h-4 w-4 text-green-500" />
-                                                            Created By
+                                                    <div className="space-y-1">
+                                                        <Label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <User className="h-3 w-3 text-green-500 flex-shrink-0" />
+                                                            <span>Created By</span>
                                                         </Label>
-                                                        <div className="mt-2 p-3 bg-white rounded-lg border font-medium">
+                                                        <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md break-words">
                                                             {profile.createdBy === "self" ? "Self Registration" : profile.createdBy}
                                                         </div>
                                                     </div>
 
-                                                    <div>
-                                                        <Label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                                                            <Globe className="h-4 w-4 text-green-500" />
-                                                            Account Status
+                                                    <div className="space-y-1">
+                                                        <Label className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <Globe className="h-3 w-3 text-green-500 flex-shrink-0" />
+                                                            <span>Account Status</span>
                                                         </Label>
-                                                        <div className="mt-2 p-3 bg-white rounded-lg border">
-                                                            <Badge className={`${profile.isActive ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+                                                        <div className="p-2 bg-white rounded-lg border shadow-sm transition-all duration-200 hover:shadow-md">
+                                                            <Badge className={`${profile.isActive ? 'bg-green-500' : 'bg-red-500'} text-white transition-all duration-200 text-xs`}>
                                                                 {profile.isActive ? (
                                                                     <><CheckCircle className="h-3 w-3 mr-1" /> Active</>
                                                                 ) : (
@@ -483,18 +473,19 @@ export default function SuperAdminProfile() {
                                             </div>
 
                                             {isEditing && (
-                                                <div className="flex justify-end gap-4 pt-6 border-t">
+                                                <div className="flex flex-col sm:flex-row justify-end gap-3 sm:gap-4 pt-6 border-t border-gray-200 animate-slide-down">
                                                     <Button
                                                         variant="outline"
                                                         onClick={handleCancel}
-                                                        className="flex items-center gap-2"
+                                                        className="flex items-center justify-center gap-2 transition-all duration-200 hover:bg-gray-50 order-2 sm:order-1"
+                                                        disabled={saving}
                                                     >
                                                         <X className="h-4 w-4" />
-                                                        Cancel
+                                                        <span>Cancel</span>
                                                     </Button>
                                                     <Button
                                                         onClick={handleSave}
-                                                        className="bg-red-600 hover:bg-red-700 flex items-center gap-2"
+                                                        className="bg-red-600 hover:bg-red-700 flex items-center justify-center gap-2 transition-all duration-200 transform hover:scale-105 order-1 sm:order-2"
                                                         disabled={saving}
                                                     >
                                                         {saving ? (
@@ -505,7 +496,7 @@ export default function SuperAdminProfile() {
                                                         ) : (
                                                             <>
                                                                 <Check className="h-4 w-4" />
-                                                                Save Changes
+                                                                <span>Save Changes</span>
                                                             </>
                                                         )}
                                                     </Button>
@@ -518,8 +509,14 @@ export default function SuperAdminProfile() {
                         </>
                     ) : (
                         <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                            <CardContent className="p-8 text-center">
-                                <p className="text-lg text-gray-600">Profile not found</p>
+                            <CardContent className="p-6 sm:p-8 text-center">
+                                <div className="flex flex-col items-center gap-4">
+                                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center">
+                                        <User className="h-8 w-8 text-red-600" />
+                                    </div>
+                                    <p className="text-lg text-gray-600">Profile not found</p>
+                                    <p className="text-sm text-gray-500">Unable to load your profile information</p>
+                                </div>
                             </CardContent>
                         </Card>
                     )}
