@@ -1,0 +1,230 @@
+﻿"use client"
+
+import { useEffect, useState } from "react"
+import { collection, doc, getDoc, getDocs, updateDoc, deleteDoc, setDoc, query, where } from "firebase/firestore"
+import { db, auth } from "@/lib/firebase"
+import { useAuth } from "@/contexts/auth-context"
+import DashboardLayout from "@/components/layout/dashboard-layout"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Trash2, Users, UserPlus, Eye, EyeOff, Plus, Shield } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Filter } from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ChevronDown } from "lucide-react"
+import { Image } from "@/components/ui/image"
+import { Check } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
+import { useRouter } from "next/navigation"
+import { get } from "http"
+import { ref } from "process"
+import { get } from "http"
+import { ref } from "process"
+import { get } from "http"
+import { ref } from "process"
+
+interface User {
+  uid: string
+  name: string
+  email: string
+  role: "admin" | "mentor" | "mentee"
+  mentorId?: string // Sequential mentor ID like MH2025001
+  assignedMentorId?: string
+  enrollmentNo?: string
+  class?: string
+  year?: string
+  section?: string
+  classId?: string
+  profileImage?: string
+  photoURL?: string
+  adminCredentials?: {
+    email: string
+    password: string
+  }
+}
+
+interface ClassInfo {
+  id: string
+  name: string
+  year: string
+  section: string
+  description: string
+  mentorId: string
+}
+
+export default function AdminUsers() {
+  const { userData } = useAuth()
+  const { toast } = useToast()
+  const [users, setUsers] = useState<User[]>([])
+  const [mentors, setMentors] = useState<User[]>([])
+  const [mentees, setMentees] = useState<User[]>([])
+  const [admins, setAdmins] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const [error, setError] = useState("")
+  const [isCreating, setIsCreating] = useState(false)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [adminPassword, setAdminPassword] = useState("")
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false)
+  const [createdUser, setCreatedUser] = useState<User | null>(null)
+  const [newUserPassword, setNewUserPassword] = useState("")
+  const [isSuccessDialogOpen, setIsSuccessDialogOpen] = useState(false)
+  const [redirectCountdown, setRedirectCountdown] = useState(0)
+  const [showRedirectCountdown, setShowRedirectCountdown] = useState(false)
+  const [newMentor, setNewMentor] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "mentor" as "admin" | "mentor" | "admin+mentor",
+    adminCredentials: {
+      email: "",
+      password: ""
+    }
+  })
+
+  // Bulk mentor creation states
+  const [bulkMentors, setBulkMentors] = useState<Array<{
+    name: string;
+    email: string;
+    password: string;
+    id: string;
+  }>>([])
+  const [isBulkMode, setIsBulkMode] = useState(false)
+
+  // Email validation states
+  const [emailErrors, setEmailErrors] = useState<Record<string, string>>({})
+  const [existingEmails, setExistingEmails] = useState<string[]>([])
+
+  // Creation process tracking
+  const [creationStatus, setCreationStatus] = useState<string>("")
+  const [creationProgress, setCreationProgress] = useState<{ current: number, total: number }>({ current: 0, total: 0 })
+  const [showProgressDialog, setShowProgressDialog] = useState(false)
+  const [progressSteps, setProgressSteps] = useState<Array<{
+    id: string;
+    title: string;
+    status: 'pending' | 'in-progress' | 'completed' | 'error';
+    details?: string;
+    timestamp?: string;
+  }>>([])
+  const [currentMentorBeingCreated, setCurrentMentorBeingCreated] = useState<{ name: string, email: string, mentorId?: string } | null>(null)
+
+  // Load existing emails on component mount
+  useEffect(() => {
+    const loadExistingEmails = async () => {
+      try {
+        const emails: string[] = []
+
+        // Get emails from all collections
+        const mentorsSnapshot = await getDocs(collection(db, "mentors"))
+        mentorsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          if (data.email) emails.push(data.email)
+        })
+
+        const menteesSnapshot = await getDocs(collection(db, "mentees"))
+        menteesSnapshot.forEach((doc) => {
+          const data = doc.data()
+          if (data.email) emails.push(data.email)
+        })
+
+        const adminsSnapshot = await getDocs(collection(db, "admins"))
+        adminsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          if (data.email) emails.push(data.email)
+        })
+
+        setExistingEmails(emails)
+      } catch (error) {
+        console.error("Error loading existing emails:", error)
+      }
+    }
+
+    loadExistingEmails()
+  }, [])
+
+  // Check for email duplicates
+  const checkEmailDuplicate = (email: string, currentIndex?: number) => {
+    if (!email) return null
+
+    // Check against existing users in database
+    const existingUserIndex = existingEmails.findIndex(existingEmail =>
+      existingEmail.toLowerCase() === email.toLowerCase()
+    )
+
+    if (existingUserIndex !== -1) {
+      return `Email already exists in database`
+    }
+
+    // For bulk mode, check against other mentors in the current list
+    if (isBulkMode && currentIndex !== undefined) {
+      const duplicateIndex = bulkMentors.findIndex((mentor, index) =>
+        index !== currentIndex && mentor.email.toLowerCase() === email.toLowerCase()
+      )
+
+      if (duplicateIndex !== -1) {
+        return `Duplicate email found in Mentor #${duplicateIndex + 1}`
+      }
+    }
+
+    return null
+  }
+
+  // Simplified progress - only show current step for current account
+  const setCurrentStep = (title: string, status: 'in-progress' | 'completed' | 'error', details?: string) => {
+    const timestamp = new Date().toLocaleTimeString()
+    setProgressSteps([{
+      id: 'current-step',
+      title,
+      status,
+      details,
+      timestamp
+    }])
+  }
+
+  const initializeProgress = () => {
+    setProgressSteps([])
+    setCurrentMentorBeingCreated(null)
+  }
+
+  // Handle email change with real-time validation
+  const handleEmailChange = (email: string, index?: number) => {
+    if (isBulkMode && index !== undefined) {
+      updateBulkMentor(bulkMentors[index].id, 'email', email)
+
+      // Check for duplicates
+      const error = checkEmailDuplicate(email, index)
+      setEmailErrors(prev => ({
+        ...prev,
+        [bulkMentors[index].id]: error || ''
+      }))
+    } else {
+      setNewMentor({ ...newMentor, email })
+
+      // Check for duplicates
+      const error = checkEmailDuplicate(email)
+      setEmailErrors(prev => ({
+        ...prev,
+        'single': error || ''
+      }))
+    }
+  }
+
+  // Generate next mentor ID
+  const generateNextMentorId = async () => {
+    try {
+      const currentYear = new Date().getFullYear()
+      const prefix = `MH${currentYear}`
+
+      // Get all existing mentors to find the highest number
+      const mentorsSnapshot = await getDocs(collection(db, "mentors"))
+
+      let highestNumber = 0
+
+      if (snapshot.exists()) {

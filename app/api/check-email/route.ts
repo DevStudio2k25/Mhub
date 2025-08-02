@@ -89,7 +89,17 @@ export async function POST(request: NextRequest) {
             hasProjectId: !!process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
         })
         
-        // On critical error, return exists: true to be safe and prevent duplicate creation
+        // If it's a missing environment variables error, return false to allow creation
+        // This is a temporary workaround until environment variables are properly set
+        if (error.message?.includes('Missing Firebase Admin SDK environment variables')) {
+            console.log('⚠️ API: Allowing email due to missing environment variables (temporary workaround)')
+            return NextResponse.json({
+                exists: false,
+                warning: 'Email validation skipped due to configuration issue'
+            })
+        }
+        
+        // On other critical errors, return exists: true to be safe and prevent duplicate creation
         return NextResponse.json({
             exists: true,
             error: 'Unable to verify email availability. Please try again.',

@@ -40,15 +40,27 @@ export default function AdminReports() {
       if (!userData) return
 
       try {
-        // Fetch all users
-        const usersSnapshot = await getDocs(collection(db, "users"))
-        const usersData = usersSnapshot.docs.reduce(
-          (acc, doc) => {
-            acc[doc.id] = { uid: doc.id, ...doc.data() } as User
-            return acc
-          },
-          {} as Record<string, User>,
-        )
+        // Fetch all users from different collections
+        const usersData: Record<string, User> = {}
+        
+        // Fetch mentors
+        const mentorsSnapshot = await getDocs(collection(db, "mentors"))
+        mentorsSnapshot.docs.forEach(doc => {
+          usersData[doc.id] = { uid: doc.id, ...doc.data() } as User
+        })
+        
+        // Fetch mentees
+        const menteesSnapshot = await getDocs(collection(db, "mentees"))
+        menteesSnapshot.docs.forEach(doc => {
+          usersData[doc.id] = { uid: doc.id, ...doc.data() } as User
+        })
+        
+        // Fetch admins (in case admin+mentor users submit reports)
+        const adminsSnapshot = await getDocs(collection(db, "admins"))
+        adminsSnapshot.docs.forEach(doc => {
+          usersData[doc.id] = { uid: doc.id, ...doc.data() } as User
+        })
+        
         setUsers(usersData)
 
         // Fetch all reports

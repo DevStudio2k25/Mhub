@@ -10,9 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Settings, Plus, Trash2, Eye, EyeOff, Users, X, Check } from "lucide-react"
+import { Settings, Plus, Trash2, Eye, EyeOff, Users, X, Check, Download, FileText, FileSpreadsheet, Grid } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { formatDate } from "@/lib/utils"
@@ -23,6 +24,7 @@ interface Admin {
   lastName: string
   adminId: string
   email: string | null
+  password?: string // Store password for export purposes
   createdAt: string
   createdBy: string | undefined
 }
@@ -79,6 +81,11 @@ export default function ManageAdmins() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [adminToDelete, setAdminToDelete] = useState<Admin | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Export states
+  const [exportDialog, setExportDialog] = useState(false)
+  const [selectedFields, setSelectedFields] = useState<string[]>(['adminId', 'firstName', 'lastName', 'email', 'createdAt'])
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'sheets'>('csv')
 
   useEffect(() => {
     const fetchAdmins = async () => {
@@ -472,8 +479,12 @@ export default function ManageAdmins() {
       console.log("✅ Admin created successfully via API:", result.admin)
       console.log("🔄 Super admin still logged in:", auth.currentUser?.email)
 
-      // Update local state
-      setAdmins([...admins, result.admin])
+      // Update local state with password included
+      const adminWithPassword = {
+        ...result.admin,
+        password: newAdmin.password // Store password for export
+      }
+      setAdmins([...admins, adminWithPassword])
       console.log("🔄 Local state updated with new admin")
 
       // Reset form
@@ -611,8 +622,15 @@ export default function ManageAdmins() {
           `${result.summary.created} admin accounts are ready to use`);
       }
 
-      // Update local state with created admins
-      setAdmins(prev => [...prev, ...result.createdAdmins])
+      // Update local state with created admins including passwords
+      const adminsWithPasswords = result.createdAdmins.map((admin: any) => {
+        const originalAdmin = bulkAdmins.find(ba => ba.email === admin.email)
+        return {
+          ...admin,
+          password: originalAdmin?.password || 'N/A'
+        }
+      })
+      setAdmins(prev => [...prev, ...adminsWithPasswords])
       console.log("🔄 Local state updated with", result.createdAdmins.length, "new admins");
 
       // Close dialog and show success
@@ -672,12 +690,168 @@ export default function ManageAdmins() {
     setDeleteDialogOpen(true)
   }
 
+  // Export functions
+  const handleExport = () => {
+    const dataToExport = admins.map(admin => {
+      const exportData: any = {}
+      selectedFields.forEach(field => {
+        switch (field) {
+          case 'adminId':
+            exportData['Admin ID'] = admin.adminId
+            break
+          case 'firstName':
+            exportData['First Name'] = admin.firstName
+            break
+          case 'lastName':
+            exportData['Last Name'] = admin.lastName
+            break
+          case 'email':
+            exportData['Email'] = admin.email || 'N/A'
+            break
+          case 'createdAt':
+            exportData['Created At'] = formatDate(admin.createdAt)
+            break
+          case 'createdBy':
+            exportData['Created By'] = admin.createdBy || 'N/A'
+            break
+          case 'password':
+            exportData['Password'] = admin.password || 'N/A'
+            break
+          case 'uid':
+            exportData['User ID'] = admin.uid
+            break
+        }
+      })
+      return exportData
+    })
+
+    if (exportFormat === 'csv') {
+      exportToCSV(dataToExport)
+    } else if (exportFormat === 'json') {
+      exportToJSON(dataToExport)
+    } else {
+      exportToGoogleSheets(dataToExport)
+    }
+
+    setExportDialog(false)
+    toast({
+      title: "Export Successful",
+      description: `${admins.length} admin records exported as ${exportFormat.toUpperCase()}`,
+    })
+  }
+
+  const exportToCSV = (data: any[]) => {
+    if (data.length === 0) return
+
+    const headers = Object.keys(data[0])
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => `"${row[header] || ''}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `admins_export_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const exportToJSON = (data: any[]) => {
+    const jsonContent = JSON.stringify(data, null, 2)
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `admins_export_${new Date().toISOString().split('T')[0]}.json`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const exportToGoogleSheets = (data: any[]) => {
+    if (data.length === 0) return
+
+    // Create Excel/Google Sheets compatible format (CSV with proper encoding)
+    const headers = Object.keys(data[0])
+
+    // Create CSV content with proper escaping
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row =>
+        headers.map(header => {
+          const value = row[header] || ''
+          // Escape quotes and wrap in quotes if contains comma, quote, or newline
+          if (value.toString().includes(',') || value.toString().includes('"') || value.toString().includes('\n')) {
+            return `"${value.toString().replace(/"/g, '""')}"`
+          }
+          return value
+        }).join(',')
+      )
+    ].join('\n')
+
+    // Add BOM for proper UTF-8 encoding in Excel/Google Sheets
+    const BOM = '\uFEFF'
+    const blob = new Blob([BOM + csvContent], {
+      type: 'text/csv;charset=utf-8;'
+    })
+
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `admins_export_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+
+    // Provide instructions
+    setTimeout(() => {
+      toast({
+        title: "Google Sheets Export Complete",
+        description: "CSV file downloaded. You can directly open it in Google Sheets or Excel.",
+      })
+    }, 500)
+  }
+
+  const availableFields = [
+    { key: 'adminId', label: 'Admin ID' },
+    { key: 'firstName', label: 'First Name' },
+    { key: 'lastName', label: 'Last Name' },
+    { key: 'email', label: 'Email' },
+    { key: 'password', label: 'Password' },
+    { key: 'createdAt', label: 'Created At' },
+    { key: 'createdBy', label: 'Created By' },
+    { key: 'uid', label: 'User ID' }
+  ]
+
+  const toggleField = (field: string) => {
+    setSelectedFields(prev =>
+      prev.includes(field)
+        ? prev.filter(f => f !== field)
+        : [...prev, field]
+    )
+  }
+
   if (!userData || userData.role !== "super-admin") {
     return null
   }
 
   return (
     <DashboardLayout>
+      <style jsx global>{`
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
       <div className="container mx-auto py-8 px-6">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -685,6 +859,16 @@ export default function ManageAdmins() {
             <p className="text-muted-foreground">Create and manage administrator accounts</p>
           </div>
           <div className="flex gap-2">
+            {admins.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setExportDialog(true)}
+                className="border-green-200 text-green-700 hover:bg-green-50"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Data
+              </Button>
+            )}
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-amber-600 hover:bg-amber-700">
@@ -1053,37 +1237,52 @@ export default function ManageAdmins() {
             </CardHeader>
             <CardContent className="p-0">
               {admins.length > 0 ? (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Admin ID</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Created At</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {admins.map((admin) => (
-                      <TableRow key={admin.uid}>
-                        <TableCell className="font-mono text-sm font-medium text-amber-600">{admin.adminId}</TableCell>
-                        <TableCell className="font-medium">{admin.firstName} {admin.lastName}</TableCell>
-                        <TableCell>{admin.email || "N/A"}</TableCell>
-                        <TableCell>{formatDate(admin.createdAt)}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDeleteDialog(admin)}
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
+                <div className="max-h-96 overflow-auto border rounded-md scrollbar-hide">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-gray-50 z-10 border-b">
+                      <TableRow className="border-b">
+                        <TableHead className="border-r px-4 py-3 text-left font-semibold">Admin ID</TableHead>
+                        <TableHead className="border-r px-4 py-3 text-left font-semibold">Name</TableHead>
+                        <TableHead className="border-r px-4 py-3 text-left font-semibold">Email</TableHead>
+                        <TableHead className="border-r px-4 py-3 text-left font-semibold">Created At</TableHead>
+                        <TableHead className="border-r px-4 py-3 text-left font-semibold">Created By</TableHead>
+                        <TableHead className="px-4 py-3 text-left font-semibold">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {admins.map((admin) => (
+                        <TableRow key={admin.uid} className="border-b hover:bg-gray-50">
+                          <TableCell className="border-r px-4 py-3 font-mono text-sm font-medium text-amber-600 whitespace-nowrap">
+                            {admin.adminId}
+                          </TableCell>
+                          <TableCell className="border-r px-4 py-3 font-medium whitespace-nowrap">
+                            {admin.firstName} {admin.lastName}
+                          </TableCell>
+                          <TableCell className="border-r px-4 py-3 whitespace-nowrap">
+                            {admin.email || "N/A"}
+                          </TableCell>
+                          <TableCell className="border-r px-4 py-3 text-sm whitespace-nowrap">
+                            {formatDate(admin.createdAt)}
+                          </TableCell>
+                          <TableCell className="border-r px-4 py-3 text-sm whitespace-nowrap">
+                            {admin.createdBy || "N/A"}
+                          </TableCell>
+                          <TableCell className="px-4 py-3 whitespace-nowrap">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openDeleteDialog(admin)}
+                              className="h-8 px-3 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Delete
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
                 <div className="text-center py-12">
                   <Settings className="h-12 w-12 text-amber-300 mx-auto mb-4" />
@@ -1219,6 +1418,96 @@ export default function ManageAdmins() {
                 </div>
               ))}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Export Dialog */}
+        <Dialog open={exportDialog} onOpenChange={setExportDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5 text-green-600" />
+                Export Admin Data
+              </DialogTitle>
+              <DialogDescription>
+                Select the fields you want to export and choose the format.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Format Selection */}
+              <div>
+                <Label className="text-sm font-medium">Export Format</Label>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <Button
+                    variant={exportFormat === 'csv' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setExportFormat('csv')}
+                    className="flex-1"
+                  >
+                    <FileSpreadsheet className="h-3 w-3 mr-1" />
+                    CSV
+                  </Button>
+                  <Button
+                    variant={exportFormat === 'json' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setExportFormat('json')}
+                    className="flex-1"
+                  >
+                    <FileText className="h-3 w-3 mr-1" />
+                    JSON
+                  </Button>
+                  <Button
+                    variant={exportFormat === 'sheets' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setExportFormat('sheets')}
+                    className="flex-1"
+                  >
+                    <Grid className="h-3 w-3 mr-1" />
+                    Sheets
+                  </Button>
+                </div>
+              </div>
+
+              {/* Field Selection */}
+              <div>
+                <Label className="text-sm font-medium">Select Fields to Export</Label>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {availableFields.map(field => (
+                    <div key={field.key} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={field.key}
+                        checked={selectedFields.includes(field.key)}
+                        onChange={() => toggleField(field.key)}
+                        className="rounded border-gray-300"
+                      />
+                      <Label htmlFor={field.key} className="text-sm">
+                        {field.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="text-sm text-gray-500">
+                {admins.length} admin records will be exported
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExportDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleExport}
+                disabled={selectedFields.length === 0}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Download className="h-3 w-3 mr-1" />
+                Export {exportFormat === 'sheets' ? 'Google Sheets' : exportFormat.toUpperCase()}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>

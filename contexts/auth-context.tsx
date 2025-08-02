@@ -54,19 +54,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let userData = null
 
         try {
+          // Check all role-specific collections
+          
           // First check super-admins collection
           const superAdminDoc = await getDoc(doc(db, "super-admins", user.uid))
-          
           if (superAdminDoc.exists()) {
             userData = superAdminDoc.data() as UserData
           } else {
             // Check admins collection
             const adminDoc = await getDoc(doc(db, "admins", user.uid))
-            
             if (adminDoc.exists()) {
               userData = adminDoc.data() as UserData
+            } else {
+              // Check mentors collection
+              const mentorDoc = await getDoc(doc(db, "mentors", user.uid))
+              if (mentorDoc.exists()) {
+                userData = mentorDoc.data() as UserData
+              } else {
+                // Check mentees collection
+                const menteeDoc = await getDoc(doc(db, "mentees", user.uid))
+                if (menteeDoc.exists()) {
+                  userData = menteeDoc.data() as UserData
+                }
+              }
             }
-            // Note: users collection (mentors/mentees) will be added later
           }
 
           if (userData) {
@@ -106,7 +117,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         ...(role === "mentee" && mentorId ? { assignedMentorId: mentorId } : {}),
       }
 
-      await setDoc(doc(db, "users", user.uid), userData)
+      // Store in appropriate collection based on role
+      let collectionName = "users" // fallback
+      switch (role) {
+        case "super-admin":
+          collectionName = "super-admins"
+          break
+        case "admin":
+        case "admin+mentor":
+          collectionName = "admins"
+          break
+        case "mentor":
+          collectionName = "mentors"
+          break
+        case "mentee":
+          collectionName = "mentees"
+          break
+        default:
+          collectionName = "users"
+      }
+
+      await setDoc(doc(db, collectionName, user.uid), userData)
       setUserData(userData)
     } catch (error) {
       console.error("Error signing up:", error)

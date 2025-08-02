@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState } from "react"
 import { collection, doc, getDoc, getDocs, updateDoc, deleteDoc, setDoc, query, where } from "firebase/firestore"
@@ -22,13 +22,18 @@ import { Image } from "@/components/ui/image"
 import { Check } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useRouter } from "next/navigation"
-
+import { get } from "http"
+import { ref } from "process"
+import { get } from "http"
+import { ref } from "process"
+import { get } from "http"
+import { ref } from "process"
 
 interface User {
   uid: string
   name: string
   email: string
-  role: "admin" | "mentor" | "mentee" | "admin+mentor"
+  role: "admin" | "mentor" | "mentee"
   mentorId?: string // Sequential mentor ID like MH2025001
   assignedMentorId?: string
   enrollmentNo?: string
@@ -59,7 +64,7 @@ export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([])
   const [mentors, setMentors] = useState<User[]>([])
   const [mentees, setMentees] = useState<User[]>([])
-
+  const [admins, setAdmins] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -77,7 +82,11 @@ export default function AdminUsers() {
     name: "",
     email: "",
     password: "",
-    role: "mentor" as "mentor"
+    role: "mentor" as "admin" | "mentor" | "admin+mentor",
+    adminCredentials: {
+      email: "",
+      password: ""
+    }
   })
 
   // Bulk mentor creation states
@@ -121,6 +130,12 @@ export default function AdminUsers() {
 
         const menteesSnapshot = await getDocs(collection(db, "mentees"))
         menteesSnapshot.forEach((doc) => {
+          const data = doc.data()
+          if (data.email) emails.push(data.email)
+        })
+
+        const adminsSnapshot = await getDocs(collection(db, "admins"))
+        adminsSnapshot.forEach((doc) => {
           const data = doc.data()
           if (data.email) emails.push(data.email)
         })
@@ -214,17 +229,19 @@ export default function AdminUsers() {
 
       mentorsSnapshot.forEach((doc) => {
         const userData = doc.data()
-        if (userData.role === "mentor" && userData.mentorId) {
-          // Extract number from mentorId like MH2025001 -> 001
-          const match = userData.mentorId.match(new RegExp(`^${prefix}(\\d+)$`))
-          if (match) {
-            const number = parseInt(match[1], 10)
-            if (number > highestNumber) {
-              highestNumber = number
+        Object.values(usersData).forEach((user: any) => {
+          if (user.role === "mentor" && user.mentorId) {
+            // Extract number from mentorId like MH2025001 -> 001
+            const match = user.mentorId.match(new RegExp(`^${prefix}(\\d+)$`))
+            if (match) {
+              const number = parseInt(match[1], 10)
+              if (number > highestNumber) {
+                highestNumber = number
+              }
             }
           }
-        }
-      })
+        })
+      }
 
       // Generate next number with leading zeros (3 digits)
       const nextNumber = (highestNumber + 1).toString().padStart(3, '0')
@@ -251,17 +268,19 @@ export default function AdminUsers() {
 
       mentorsSnapshot.forEach((doc) => {
         const userData = doc.data()
-        if (userData.role === "mentor" && userData.mentorId) {
-          // Extract number from mentorId like MH2025001 -> 001
-          const match = userData.mentorId.match(new RegExp(`^${prefix}(\\d+)$`))
-          if (match) {
-            const number = parseInt(match[1], 10)
-            if (number > highestNumber) {
-              highestNumber = number
+        Object.values(usersData).forEach((user: any) => {
+          if (user.role === "mentor" && user.mentorId) {
+            // Extract number from mentorId like MH2025001 -> 001
+            const match = user.mentorId.match(new RegExp(`^${prefix}(\\d+)$`))
+            if (match) {
+              const number = parseInt(match[1], 10)
+              if (number > highestNumber) {
+                highestNumber = number
+              }
             }
           }
-        }
-      })
+        })
+      }
 
       // Generate sequential IDs
       const mentorIds = []
@@ -284,7 +303,28 @@ export default function AdminUsers() {
     }
   }
 
-  // This useEffect is no longer needed since we only create mentors
+  // Update admin credentials when name changes for admin+mentor role
+  useEffect(() => {
+    if (newMentor.role === "admin+mentor" && newMentor.name) {
+      // When name changes, update the admin email suggestion if it follows a pattern
+      if (!newMentor.adminCredentials.email ||
+        newMentor.adminCredentials.email.includes('@admin') ||
+        newMentor.adminCredentials.email.endsWith('.admin')) {
+        // Generate a suggested admin email based on the mentor email
+        const emailParts = newMentor.email.split('@');
+        if (emailParts.length === 2) {
+          const suggestedAdminEmail = `${emailParts[0]}.admin@${emailParts[1]}`;
+          setNewMentor(prev => ({
+            ...prev,
+            adminCredentials: {
+              ...prev.adminCredentials,
+              email: suggestedAdminEmail
+            }
+          }));
+        }
+      }
+    }
+  }, [newMentor.name, newMentor.email, newMentor.role])
 
   // Generate random password
   const generateRandomPassword = () => {
@@ -333,7 +373,7 @@ export default function AdminUsers() {
   const [selectedClassId, setSelectedClassId] = useState<string>("")
   const [expandedMentorCards, setExpandedMentorCards] = useState<Record<string, boolean>>({})
   const [expandedMenteeCards, setExpandedMenteeCards] = useState<Record<string, boolean>>({})
-
+  const [expandedAdminCards, setExpandedAdminCards] = useState<Record<string, boolean>>({})
   const [selectedMentorIds, setSelectedMentorIds] = useState<Record<string, string>>({})
   const [pendingChanges, setPendingChanges] = useState<Record<string, { assignedMentorId?: string }>>({})
   const [savingMentees, setSavingMentees] = useState<Record<string, boolean>>({})
@@ -344,7 +384,7 @@ export default function AdminUsers() {
         const usersArray: User[] = []
         const mentorsArray: User[] = []
         const menteesArray: User[] = []
-
+        const adminsArray: User[] = []
         const assignedMenteesArray: User[] = []
         const unassignedMenteesArray: User[] = []
 
@@ -373,11 +413,19 @@ export default function AdminUsers() {
           }
         })
 
-
+        // Fetch admins from admins collection
+        const adminsSnapshot = await getDocs(collection(db, "admins"))
+        adminsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          const user = { uid: doc.id, ...data } as User
+          usersArray.push(user)
+          adminsArray.push(user)
+        })
 
         setUsers(usersArray)
         setMentors(mentorsArray)
         setMentees(menteesArray)
+        setAdmins(adminsArray)
         setAssignedMentees(assignedMenteesArray)
         setUnassignedMentees(unassignedMenteesArray)
       } catch (error) {
@@ -560,6 +608,8 @@ export default function AdminUsers() {
         setMentors(mentors.filter((mentor) => mentor.uid !== userId))
       } else if (users.find((user) => user.uid === userId)?.role === "mentee") {
         setMentees(mentees.filter((mentee) => mentee.uid !== userId))
+      } else if (users.find((user) => user.uid === userId)?.role === "admin") {
+        setAdmins(admins.filter((admin) => admin.uid !== userId))
       }
     } catch (error) {
       console.error("Error deleting user:", error)
@@ -617,23 +667,28 @@ export default function AdminUsers() {
         userData.mentorId = mentorId
       }
 
-      // Save user data in mentors collection since we only create mentors
-      const collectionName = "mentors"
+      // Save user data in appropriate collection based on role
+      let collectionName = "users" // fallback
+      if (newMentor.role === "mentor") {
+        collectionName = "mentors"
+      } else if (newMentor.role === "admin" || newMentor.role === "admin+mentor") {
+        collectionName = "admins"
+      }
 
       await setDoc(doc(db, collectionName, mentorUser.uid), userData)
 
       setCreationStatus("Securing session...");
       // Sign out the newly created account (read-only security process)
       await signOut(auth)
-      console.log(`âœ“ Auto-signed out new user (security process)`);
+      console.log(`✓ Auto-signed out new user (security process)`);
 
       // Sign back in as admin
       if (adminEmail) {
         try {
           await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
-          console.log(`âœ“ Signed back in as admin`);
+          console.log(`✓ Signed back in as admin`);
         } catch (error) {
-          console.error("âŒ Error signing back in as admin:", error)
+          console.error("❌ Error signing back in as admin:", error)
         }
       }
 
@@ -663,7 +718,11 @@ export default function AdminUsers() {
         name: "",
         email: "",
         password: "",
-        role: "mentor"
+        role: "mentor",
+        adminCredentials: {
+          email: "",
+          password: ""
+        }
       })
 
       toast({
@@ -741,7 +800,7 @@ export default function AdminUsers() {
           setCurrentStep(`Creating account for ${mentorData.name}`, 'in-progress', `Setting up authentication...`);
           const mentorCredential = await createUserWithEmailAndPassword(auth, mentorData.email, mentorData.password)
           const mentorUser = mentorCredential.user
-          console.log(`âœ“ Created auth account for ${mentorData.name}`);
+          console.log(`✓ Created auth account for ${mentorData.name}`);
 
           // Step 2: Save user data
           setCurrentStep(`Saving profile for ${mentorData.name}`, 'in-progress', `Mentor ID: ${mentorId}`);
@@ -757,7 +816,7 @@ export default function AdminUsers() {
 
           // Save in mentors collection since role is mentor
           await setDoc(doc(db, "mentors", mentorUser.uid), userData)
-          console.log(`âœ“ Saved user data for ${mentorData.name} with mentor ID: ${mentorId}`);
+          console.log(`✓ Saved user data for ${mentorData.name} with mentor ID: ${mentorId}`);
 
           // Step 3: Silent sign out (security process)
           setCurrentStep(`Securing account for ${mentorData.name}`, 'in-progress', 'Processing security measures...');
@@ -767,7 +826,7 @@ export default function AdminUsers() {
             // Perform signout without any UI changes or focus loss
             await new Promise((resolve) => {
               signOut(auth).then(() => {
-                console.log(`âœ“ Auto-signed out ${mentorData.name} (security process)`);
+                console.log(`✓ Auto-signed out ${mentorData.name} (security process)`);
                 resolve(true);
               }).catch((signOutError) => {
                 console.log(`Note: Sign out not needed for ${mentorData.name}`);
@@ -786,7 +845,7 @@ export default function AdminUsers() {
           if (adminEmail && i < bulkMentors.length - 1) {
             try {
               await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
-              console.log(`âœ“ Signed back in as admin for next iteration`);
+              console.log(`✓ Signed back in as admin for next iteration`);
             } catch (signInError) {
               console.log(`Note: Admin already signed in`);
             }
@@ -797,7 +856,7 @@ export default function AdminUsers() {
           await new Promise(resolve => setTimeout(resolve, 500)); // Brief pause to show completion
 
         } catch (error: any) {
-          console.error(`âŒ Error creating mentor ${mentorData.name}:`, error)
+          console.error(`❌ Error creating mentor ${mentorData.name}:`, error)
           setCurrentStep(`Error creating ${mentorData.name}`, 'error', `${error.message}`);
           await new Promise(resolve => setTimeout(resolve, 1000)); // Pause on error
           // Continue with other mentors even if one fails
@@ -809,9 +868,9 @@ export default function AdminUsers() {
       if (auth.currentUser?.email !== adminEmail && adminEmail) {
         try {
           await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
-          console.log("âœ“ Signed back in as admin (final step)");
+          console.log("✓ Signed back in as admin (final step)");
         } catch (error) {
-          console.error("âŒ Error signing back in as admin:", error);
+          console.error("❌ Error signing back in as admin:", error);
         }
       }
 
@@ -881,7 +940,12 @@ export default function AdminUsers() {
     }))
   }
 
-
+  const toggleAdminCardExpansion = (adminId: string) => {
+    setExpandedAdminCards(prev => ({
+      ...prev,
+      [adminId]: !prev[adminId]
+    }))
+  }
 
   const getCurrentMentorId = (menteeId: string) => {
     const pendingChange = pendingChanges[menteeId]
@@ -922,7 +986,11 @@ export default function AdminUsers() {
                     name: "",
                     email: "",
                     password: "",
-                    role: "mentor"
+                    role: "mentor",
+                    adminCredentials: {
+                      email: "",
+                      password: ""
+                    }
                   });
                   setError("");
                   setEmailErrors({});
@@ -937,10 +1005,10 @@ export default function AdminUsers() {
                 <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>
-                      Create New Mentor
+                      Create New {newMentor.role === "mentor" ? "Mentor" : "Admin"}
                     </DialogTitle>
                     <DialogDescription>
-                      Fill in the details to create a new mentor account.
+                      Fill in the details to create a new {newMentor.role === "mentor" ? "mentor" : "admin"} account.
                     </DialogDescription>
                   </DialogHeader>
 
@@ -956,7 +1024,12 @@ export default function AdminUsers() {
                         <Select
                           value={newMentor.role}
                           onValueChange={(value) => {
-                            setNewMentor({ ...newMentor, role: "mentor" });
+                            const role = value as "mentor" | "admin" | "admin+mentor";
+                            setNewMentor({ ...newMentor, role });
+                            // Reset bulk mode when role changes
+                            if (role !== "mentor") {
+                              resetBulkMode();
+                            }
                           }}
                         >
                           <SelectTrigger className="h-11">
@@ -964,6 +1037,7 @@ export default function AdminUsers() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="mentor">Mentor</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -1203,16 +1277,16 @@ export default function AdminUsers() {
                     </h4>
                     {isBulkMode ? (
                       <div className="space-y-1 text-sm text-blue-800">
-                        <p>â€¢ {bulkMentors.length} mentor accounts will be created</p>
-                        <p>â€¢ Sequential mentor IDs will be assigned</p>
-                        <p>â€¢ You will remain signed in as admin</p>
+                        <p>• {bulkMentors.length} mentor accounts will be created</p>
+                        <p>• Sequential mentor IDs will be assigned</p>
+                        <p>• You will remain signed in as admin</p>
                       </div>
                     ) : (
                       <div className="space-y-1 text-sm text-blue-800">
-                        <p>â€¢ Name: {newMentor.name}</p>
-                        <p>â€¢ Email: {newMentor.email}</p>
-                        <p>â€¢ Role: {newMentor.role}</p>
-                        {newMentor.role === "mentor" && <p>â€¢ Mentor ID will be auto-assigned</p>}
+                        <p>• Name: {newMentor.name}</p>
+                        <p>• Email: {newMentor.email}</p>
+                        <p>• Role: {newMentor.role}</p>
+                        {newMentor.role === "mentor" && <p>• Mentor ID will be auto-assigned</p>}
                       </div>
                     )}
                   </div>
@@ -1505,7 +1579,7 @@ export default function AdminUsers() {
                     {showRedirectCountdown && (
                       <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-md">
                         <p className="text-sm text-blue-700 flex items-center gap-2">
-                          <span className="animate-pulse">â±ï¸</span>
+                          <span className="animate-pulse">⏱️</span>
                           Redirecting to {createdUser?.role} account in {redirectCountdown} seconds...
                         </p>
                       </div>
@@ -1539,13 +1613,96 @@ export default function AdminUsers() {
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-amber-500"></div>
               </div>
             ) : (
-              <Tabs defaultValue="mentors" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 mb-8">
+              <Tabs defaultValue="admins" className="w-full">
+                <TabsList className="grid w-full grid-cols-3 mb-8">
+                  <TabsTrigger value="admins">Administrators</TabsTrigger>
                   <TabsTrigger value="mentors">Mentors</TabsTrigger>
                   <TabsTrigger value="mentees">Mentees</TabsTrigger>
                 </TabsList>
 
+                {/* Admins Tab */}
+                <TabsContent value="admins">
+                  <div className="space-y-4">
+                    {admins.length === 0 ? (
+                      <div className="text-center p-4 border rounded-lg">
+                        <p>No administrators found</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {admins.map((admin) => (
+                          <div key={admin.uid} className="border rounded-lg overflow-hidden">
+                            <div
+                              className="bg-gradient-to-r from-purple-500 to-purple-700 p-4 flex justify-between items-center cursor-pointer"
+                              onClick={() => toggleAdminCardExpansion(admin.uid)}
+                            >
+                              <div className="flex items-center space-x-3">
+                                <div className="h-10 w-10 rounded-full bg-purple-300 flex items-center justify-center text-purple-800 font-semibold">
+                                  {admin.profileImage || admin.photoURL ? (
+                                    <Image
+                                      src={admin.profileImage || admin.photoURL || ''}
+                                      alt={admin.name}
+                                      fill
+                                      className="object-cover"
+                                    />
+                                  ) : (
+                                    admin.name.substring(0, 2).toUpperCase()
+                                  )}
+                                </div>
+                                <div>
+                                  <h3 className="font-semibold text-white">{admin.name}</h3>
+                                  <p className="text-purple-100 text-sm">{admin.email}</p>
+                                </div>
+                              </div>
+                              <motion.div
+                                animate={{ rotate: expandedAdminCards[admin.uid] ? 180 : 0 }}
+                                transition={{ duration: 0.3 }}
+                              >
+                                <ChevronDown className="h-5 w-5 text-white" />
+                              </motion.div>
+                            </div>
+                            <AnimatePresence>
+                              {expandedAdminCards[admin.uid] && (
+                                <motion.div
+                                  initial={{ height: 0, opacity: 0 }}
+                                  animate={{ height: "auto", opacity: 1 }}
+                                  exit={{ height: 0, opacity: 0 }}
+                                  transition={{ duration: 0.3 }}
+                                  className="overflow-hidden"
+                                >
+                                  <div className="p-4 bg-white">
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                      <div className="bg-purple-50 p-3 rounded-md">
+                                        <p className="text-sm text-gray-500">Role</p>
+                                        <p className="font-medium">Administrator</p>
+                                      </div>
+                                      <div className="bg-purple-50 p-3 rounded-md">
+                                        <p className="text-sm text-gray-500">User ID</p>
+                                        <p className="font-medium text-sm truncate">{admin.uid}</p>
+                                      </div>
+                                    </div>
 
+                                    {userData?.uid !== admin.uid && (
+                                      <div className="flex justify-end">
+                                        <Button
+                                          variant="destructive"
+                                          size="sm"
+                                          onClick={() => handleDeleteUser(admin.uid)}
+                                        >
+                                          <Trash2 className="h-4 w-4 mr-1" />
+                                          Delete User
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </TabsContent>
 
                 {/* Mentors Tab */}
                 <TabsContent value="mentors">

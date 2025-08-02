@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ref, get, set } from "firebase/database"
+import { collection, doc, getDoc, getDocs, setDoc, query, where } from "firebase/firestore"
 import { db, auth } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
@@ -82,14 +82,22 @@ export default function MentorDashboard() {
   const [loading, setLoading] = useState(true)
   const [menteesWithNames, setMenteesWithNames] = useState<{ [key: string]: string }>({})
 
-  // Save admin credentials to Firebase
+  // Save admin credentials to Firestore
   const saveAdminCredentials = async (credentials: { email: string; password: string }) => {
     if (!userData?.uid) return
 
     try {
       setIsSaving(true)
-      const credentialsRef = ref(db, `users/${userData.uid}/adminCredentials`)
-      await set(credentialsRef, credentials)
+      const mentorRef = doc(db, "mentors", userData.uid)
+      const mentorDoc = await getDoc(mentorRef)
+      
+      if (mentorDoc.exists()) {
+        const currentData = mentorDoc.data()
+        await setDoc(mentorRef, {
+          ...currentData,
+          adminCredentials: credentials
+        }, { merge: true })
+      }
 
       toast({
         title: "Credentials saved",
@@ -117,26 +125,26 @@ export default function MentorDashboard() {
     const names: { [key: string]: string } = {}
     await Promise.all(
       menteeIds.map(async (id) => {
-        const menteeRef = ref(db, `users/${id}`)
-        const snapshot = await get(menteeRef)
-        if (snapshot.exists()) {
-          names[id] = snapshot.val().name
+        const menteeRef = doc(db, "mentees", id)
+        const menteeDoc = await getDoc(menteeRef)
+        if (menteeDoc.exists()) {
+          names[id] = menteeDoc.data().name
         }
       })
     )
     setMenteesWithNames(names)
   }
 
-  // Load admin credentials from Firebase
+  // Load admin credentials from Firestore
   const loadAdminCredentials = async () => {
     if (!userData?.uid) return
 
     try {
-      const mentorRef = ref(db, `users/${userData.uid}`)
-      const snapshot = await get(mentorRef)
+      const mentorRef = doc(db, "mentors", userData.uid)
+      const mentorDoc = await getDoc(mentorRef)
 
-      if (snapshot.exists()) {
-        const mentorData = snapshot.val()
+      if (mentorDoc.exists()) {
+        const mentorData = mentorDoc.data()
         if (mentorData.adminCredentials) {
           setAdminAccount({
             uid: userData.uid,
@@ -159,11 +167,11 @@ export default function MentorDashboard() {
       if (!userData?.uid) return
 
       try {
-        const mentorRef = ref(db, `users/${userData.uid}`)
-        const mentorSnapshot = await get(mentorRef)
+        const mentorRef = doc(db, "mentors", userData.uid)
+        const mentorDoc = await getDoc(mentorRef)
 
-        if (mentorSnapshot.exists()) {
-          const mentorData = mentorSnapshot.val()
+        if (mentorDoc.exists()) {
+          const mentorData = mentorDoc.data()
           setHasAdminAccess(mentorData.hasAdminAccess || false)
         }
       } catch (error) {
@@ -180,18 +188,18 @@ export default function MentorDashboard() {
       if (!userData?.uid || !hasAdminAccess) return
 
       try {
-        const mentorRef = ref(db, `users/${userData.uid}`)
-        const mentorSnapshot = await get(mentorRef)
+        const mentorRef = doc(db, "mentors", userData.uid)
+        const mentorDoc = await getDoc(mentorRef)
 
-        if (mentorSnapshot.exists()) {
-          const mentorData = mentorSnapshot.val()
+        if (mentorDoc.exists()) {
+          const mentorData = mentorDoc.data()
           if (mentorData.adminAccountId) {
             // Get the admin account details
-            const adminRef = ref(db, `users/${mentorData.adminAccountId}`)
-            const adminSnapshot = await get(adminRef)
+            const adminRef = doc(db, "admins", mentorData.adminAccountId)
+            const adminDoc = await getDoc(adminRef)
 
-            if (adminSnapshot.exists()) {
-              const adminData = adminSnapshot.val()
+            if (adminDoc.exists()) {
+              const adminData = adminDoc.data()
               // Get admin credentials from mentor data
               const adminCredentials = mentorData.adminCredentials || {}
               setAdminAccount({
@@ -212,77 +220,116 @@ export default function MentorDashboard() {
     loadAdminAccount()
   }, [userData?.uid, hasAdminAccess])
 
-  // Effect to load mentor data
+  // Effect to load mentor data from Firestore
   useEffect(() => {
     const loadData = async () => {
       if (!userData?.uid) return
       setLoading(true)
 
       try {
+        // Load mentees assigned to this mentor
+        const menteesQuery = query(collection(db, "mentees"), where("assignedMentorId", "==", userData.uid))
+        const menteesSnapshot = await getDocs(menteesQuery)
+        const menteesData: Mentee[] = []
+        const menteeNames: { [key: string]: string } = {}
 
-        // Load mentees
-        const menteesRef = ref(db, `mentors/${userData.uid}/mentees`)
-        const menteesSnapshot = await get(menteesRef)
-        if (menteesSnapshot.exists()) {
-          const menteeIds = Object.keys(menteesSnapshot.val())
-          const menteePromises = menteeIds.map(async (id) => {
-            const menteeRef = ref(db, `users/${id}`)
-            const menteeSnapshot = await get(menteeRef)
-            if (menteeSnapshot.exists()) {
-              return { uid: id, ...menteeSnapshot.val() }
-            }
-            return null
+        menteesSnapshot.forEach((doc) => {
+          const data = doc.data()
+          menteesData.push({
+            uid: doc.id,
+            name: data.name,
+            email: data.email,
+            enrollmentNo: data.enrollmentNo,
+            profileImage: data.profileImage,
+            classId: data.classId
           })
-          const menteeData = (await Promise.all(menteePromises)).filter(Boolean) as Mentee[]
-          setMentees(menteeData)
+          menteeNames[doc.id] = data.name
+        })
+        setMentees(menteesData)
+        setMenteesWithNames(menteeNames)
 
-          // Load mentee names for display
-          await loadMenteeNames(menteeIds)
-        }
+        // Load classes created by this mentor
+        const classesQuery = query(collection(db, "classes"), where("mentorId", "==", userData.uid))
+        const classesSnapshot = await getDocs(classesQuery)
+        const classesData: ClassInfo[] = []
 
-        // Load classes
-        const classesRef = ref(db, `mentors/${userData.uid}/classes`)
-        const classesSnapshot = await get(classesRef)
-        if (classesSnapshot.exists()) {
-          const classData = Object.entries(classesSnapshot.val()).map(([id, data]) => ({
-            id,
-            ...(data as Omit<ClassInfo, 'id'>)
-          }))
-          setClasses(classData)
-        }
+        classesSnapshot.forEach((doc) => {
+          const data = doc.data()
+          const menteeCount = menteesData.filter(mentee => mentee.classId === doc.id).length
+          classesData.push({
+            id: doc.id,
+            name: data.name,
+            year: data.year,
+            section: data.section,
+            description: data.description,
+            mentorId: data.mentorId,
+            menteeCount
+          })
+        })
+        setClasses(classesData)
 
-        // Load pending reports
-        const reportsRef = ref(db, `mentors/${userData.uid}/reports`)
-        const reportsSnapshot = await get(reportsRef)
-        if (reportsSnapshot.exists()) {
-          const pendingReportData = Object.entries(reportsSnapshot.val())
-            .map(([id, data]) => ({ id, ...(data as Omit<Report, 'id'>) }))
-            .filter(report => report.status === 'pending')
-          setPendingReports(pendingReportData)
-        }
+        // Load pending reports for this mentor
+        const reportsQuery = query(
+          collection(db, "reports"), 
+          where("mentorId", "==", userData.uid),
+          where("status", "==", "pending")
+        )
+        const reportsSnapshot = await getDocs(reportsQuery)
+        const pendingReportsData: Report[] = []
 
-        // Load pending queries
-        const queriesRef = ref(db, `mentors/${userData.uid}/queries`)
-        const queriesSnapshot = await get(queriesRef)
-        if (queriesSnapshot.exists()) {
-          const pendingQueryData = Object.entries(queriesSnapshot.val())
-            .map(([id, data]) => ({ id, ...(data as Omit<Query, 'id'>) }))
-            .filter(query => query.status === 'pending')
-          setPendingQueries(pendingQueryData)
-        }
+        reportsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          pendingReportsData.push({
+            id: doc.id,
+            menteeId: data.menteeId,
+            title: data.title,
+            timestamp: data.timestamp,
+            status: data.status
+          })
+        })
+        setPendingReports(pendingReportsData)
 
-        // Load upcoming sessions
-        const sessionsRef = ref(db, `mentors/${userData.uid}/sessions`)
-        const sessionsSnapshot = await get(sessionsRef)
-        if (sessionsSnapshot.exists()) {
-          const sessionData = Object.entries(sessionsSnapshot.val())
-            .map(([id, data]) => ({ id, ...(data as Omit<Session, 'id'>) }))
-            // Filter for upcoming sessions (sessions with datetime in the future)
-            .filter(session => new Date(session.datetime) > new Date())
-            // Sort by datetime
-            .sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime())
-          setUpcomingSessions(sessionData)
-        }
+        // Load pending queries for this mentor
+        const queriesQuery = query(
+          collection(db, "queries"),
+          where("mentorId", "==", userData.uid),
+          where("status", "==", "pending")
+        )
+        const queriesSnapshot = await getDocs(queriesQuery)
+        const pendingQueriesData: Query[] = []
+
+        queriesSnapshot.forEach((doc) => {
+          const data = doc.data()
+          pendingQueriesData.push({
+            id: doc.id,
+            menteeId: data.menteeId,
+            subject: data.subject,
+            timestamp: data.timestamp,
+            status: data.status
+          })
+        })
+        setPendingQueries(pendingQueriesData)
+
+        // Load upcoming sessions for this mentor
+        const sessionsQuery = query(collection(db, "sessions"), where("mentorId", "==", userData.uid))
+        const sessionsSnapshot = await getDocs(sessionsQuery)
+        const upcomingSessionsData: Session[] = []
+
+        sessionsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          // Filter for upcoming sessions (sessions with datetime in the future)
+          if (new Date(data.datetime) > new Date()) {
+            upcomingSessionsData.push({
+              id: doc.id,
+              topic: data.topic,
+              datetime: data.datetime
+            })
+          }
+        })
+
+        // Sort by datetime
+        upcomingSessionsData.sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime())
+        setUpcomingSessions(upcomingSessionsData)
 
         setLoading(false)
       } catch (error) {
@@ -296,132 +343,7 @@ export default function MentorDashboard() {
     }
   }, [userData])
 
-  useEffect(() => {
-    const fetchData = async () => {
-      if (!userData) return
 
-      try {
-        // Get all users
-        const usersRef = ref(db, "users")
-        const usersSnapshot = await get(usersRef)
-
-        const menteesData: Mentee[] = []
-        const menteeNames: { [key: string]: string } = {}
-
-        if (usersSnapshot.exists()) {
-          const usersData = usersSnapshot.val()
-
-          // Filter mentees assigned to this mentor
-          Object.entries(usersData).forEach(([uid, data]: [string, any]) => {
-            if (data.role === "mentee" && data.assignedMentorId === userData.uid) {
-              menteesData.push({
-                uid,
-                ...data,
-              })
-              menteeNames[uid] = data.name
-            }
-          })
-        }
-        setMentees(menteesData)
-        setMenteesWithNames(menteeNames)
-
-        // Get classes
-        const classesRef = ref(db, "classes")
-        const classesSnapshot = await get(classesRef)
-
-        const classesData: ClassInfo[] = []
-        if (classesSnapshot.exists()) {
-          const allClasses = classesSnapshot.val()
-
-          // Filter classes created by this mentor
-          Object.entries(allClasses).forEach(([id, data]: [string, any]) => {
-            if (data.mentorId === userData.uid) {
-              // Count mentees in this class
-              const menteeCount = menteesData.filter(mentee => mentee.classId === id).length
-
-              classesData.push({
-                id,
-                ...data,
-                menteeCount
-              })
-            }
-          })
-        }
-        setClasses(classesData)
-
-        // Get reports
-        const reportsRef = ref(db, "reports")
-        const reportsSnapshot = await get(reportsRef)
-
-        const pendingReportsData: Report[] = []
-
-        if (reportsSnapshot.exists()) {
-          const reportsData = reportsSnapshot.val()
-
-          // Filter pending reports for this mentor
-          Object.entries(reportsData).forEach(([id, data]: [string, any]) => {
-            if (data.mentorId === userData.uid && data.status === "pending") {
-              pendingReportsData.push({
-                id,
-                ...data,
-              })
-            }
-          })
-        }
-        setPendingReports(pendingReportsData)
-
-        // Get queries
-        const queriesRef = ref(db, "queries")
-        const queriesSnapshot = await get(queriesRef)
-
-        const pendingQueriesData: Query[] = []
-
-        if (queriesSnapshot.exists()) {
-          const queriesData = queriesSnapshot.val()
-
-          // Filter pending queries for this mentor
-          Object.entries(queriesData).forEach(([id, data]: [string, any]) => {
-            if (data.mentorId === userData.uid && data.status === "pending") {
-              pendingQueriesData.push({
-                id,
-                ...data,
-              })
-            }
-          })
-        }
-        setPendingQueries(pendingQueriesData)
-
-        // Get sessions
-        const sessionsRef = ref(db, "sessions")
-        const sessionsSnapshot = await get(sessionsRef)
-
-        const upcomingSessionsData: Session[] = []
-
-        if (sessionsSnapshot.exists()) {
-          const sessionsData = sessionsSnapshot.val()
-
-          // Filter sessions for this mentor
-          Object.entries(sessionsData).forEach(([id, data]: [string, any]) => {
-            if (data.mentorId === userData.uid) {
-              upcomingSessionsData.push({
-                id,
-                ...data,
-              })
-            }
-          })
-        }
-        setUpcomingSessions(upcomingSessionsData)
-      } catch (error) {
-        console.error("Error fetching data:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    if (userData && userData.role === "mentor") {
-      fetchData()
-    }
-  }, [userData])
 
   if (!userData || (userData.role !== "mentor" && userData.role !== "admin+mentor")) {
     return null

@@ -42,9 +42,13 @@ export default function SuperAdminDashboard() {
         const adminsSnapshot = await getDocs(collection(db, "admins"))
         const adminsCount = adminsSnapshot.size
 
-        // For now, mentors and mentees count will be 0 (we'll update later)
-        const mentorsCount = 0
-        const menteesCount = 0
+        // Fetch mentors
+        const mentorsSnapshot = await getDocs(collection(db, "mentors"))
+        const mentorsCount = mentorsSnapshot.size
+
+        // Fetch mentees
+        const menteesSnapshot = await getDocs(collection(db, "mentees"))
+        const menteesCount = menteesSnapshot.size
 
         const totalUsers = superAdminsCount + adminsCount + mentorsCount + menteesCount
 

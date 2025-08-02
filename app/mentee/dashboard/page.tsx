@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ref, get } from "firebase/database"
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
@@ -120,102 +120,89 @@ export default function MenteeDashboard() {
       if (!userData) return
 
       try {
-        // Fetch complete mentee data
-        const menteeRef = ref(db, `users/${userData.uid}`)
-        const menteeSnapshot = await get(menteeRef)
+        // Fetch complete mentee data from Firestore
+        const menteeRef = doc(db, "mentees", userData.uid)
+        const menteeDoc = await getDoc(menteeRef)
 
-        if (menteeSnapshot.exists()) {
+        if (menteeDoc.exists()) {
           const completeData = {
             uid: userData.uid,
-            ...menteeSnapshot.val()
+            ...menteeDoc.data()
           }
           setMenteeData(completeData)
 
           // Fetch class info if assigned
           if (completeData.classId) {
-            const classRef = ref(db, `classes/${completeData.classId}`)
-            const classSnapshot = await get(classRef)
+            const classRef = doc(db, "classes", completeData.classId)
+            const classDoc = await getDoc(classRef)
 
-            if (classSnapshot.exists()) {
+            if (classDoc.exists()) {
               setClassInfo({
                 id: completeData.classId,
-                ...classSnapshot.val()
+                ...classDoc.data()
               })
             }
           }
 
           // Fetch mentor info if assigned
           if (completeData.assignedMentorId) {
-            const mentorRef = ref(db, `users/${completeData.assignedMentorId}`)
-            const mentorSnapshot = await get(mentorRef)
+            const mentorRef = doc(db, "mentors", completeData.assignedMentorId)
+            const mentorDoc = await getDoc(mentorRef)
 
-            if (mentorSnapshot.exists()) {
+            if (mentorDoc.exists()) {
               setMentor({
                 uid: completeData.assignedMentorId,
-                ...mentorSnapshot.val(),
+                ...mentorDoc.data(),
               })
             }
           }
         }
 
-        // Fetch reports
-        const reportsRef = ref(db, "reports")
-        const reportsSnapshot = await get(reportsRef)
-
+        // Fetch reports for this mentee
+        const reportsQuery = query(collection(db, "reports"), where("menteeId", "==", userData.uid))
+        const reportsSnapshot = await getDocs(reportsQuery)
         const reportsData: Report[] = []
-        if (reportsSnapshot.exists()) {
-          const allReports = reportsSnapshot.val()
 
-          // Filter reports for this mentee
-          Object.entries(allReports).forEach(([id, data]: [string, any]) => {
-            if (data.menteeId === userData.uid) {
-              reportsData.push({
-                id,
-                ...data,
-              })
-            }
+        reportsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          reportsData.push({
+            id: doc.id,
+            timestamp: data.timestamp,
+            title: data.title,
+            feedback: data.feedback,
+            status: data.status
           })
-        }
+        })
         setReports(reportsData)
 
-        // Fetch upcoming sessions
-        const sessionsRef = ref(db, "sessions")
-        const sessionsSnapshot = await get(sessionsRef)
-
+        // Fetch upcoming sessions for this mentee
+        const sessionsQuery = query(collection(db, "sessions"), where("menteeId", "==", userData.uid))
+        const sessionsSnapshot = await getDocs(sessionsQuery)
         const sessionsData: Session[] = []
-        if (sessionsSnapshot.exists()) {
-          const allSessions = sessionsSnapshot.val()
 
-          // Filter sessions for this mentee
-          Object.entries(allSessions).forEach(([id, data]: [string, any]) => {
-            if (data.mentees && data.mentees.includes(userData.uid)) {
-              sessionsData.push({
-                id,
-                ...data,
-              })
-            }
+        sessionsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          sessionsData.push({
+            id: doc.id,
+            datetime: data.datetime,
+            topic: data.topic,
+            meetingLink: data.meetingLink
           })
-        }
+        })
         setSessions(sessionsData)
 
-        // Fetch queries
-        const queriesRef = ref(db, "queries")
-        const queriesSnapshot = await get(queriesRef)
-
+        // Fetch queries for this mentee
+        const queriesQuery = query(collection(db, "queries"), where("menteeId", "==", userData.uid))
+        const queriesSnapshot = await getDocs(queriesQuery)
         const queriesData: Query[] = []
-        if (queriesSnapshot.exists()) {
-          const allQueries = queriesSnapshot.val()
 
-          // Filter queries for this mentee
-          Object.entries(allQueries).forEach(([id, data]: [string, any]) => {
-            if (data.menteeId === userData.uid) {
-              queriesData.push({
-                id,
-                ...data,
-              })
-            }
+        queriesSnapshot.forEach((doc) => {
+          const data = doc.data()
+          queriesData.push({
+            id: doc.id,
+            ...data
           })
-        }
+        })
         setQueries(queriesData)
       } catch (error) {
         console.error("Error fetching data:", error)

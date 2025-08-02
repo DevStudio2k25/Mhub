@@ -57,10 +57,14 @@ export default function ProfilePage() {
 
         if (userData.role === "super-admin") {
           userDoc = await getDoc(doc(db, "super-admins", userData.uid))
-        } else if (userData.role === "admin") {
+        } else if (userData.role === "admin" || userData.role === "admin+mentor") {
           userDoc = await getDoc(doc(db, "admins", userData.uid))
+        } else if (userData.role === "mentor") {
+          userDoc = await getDoc(doc(db, "mentors", userData.uid))
+        } else if (userData.role === "mentee") {
+          userDoc = await getDoc(doc(db, "mentees", userData.uid))
         } else {
-          // For mentors and mentees, we'll use users collection (to be migrated later)
+          // Fallback to users collection
           userDoc = await getDoc(doc(db, "users", userData.uid))
         }
 
@@ -120,11 +124,15 @@ export default function ProfilePage() {
 
     try {
       // Update user data in appropriate collection
-      let collectionName = "users"
+      let collectionName = "users" // fallback
       if (profile.role === "super-admin") {
         collectionName = "super-admins"
-      } else if (profile.role === "admin") {
+      } else if (profile.role === "admin" || profile.role === "admin+mentor") {
         collectionName = "admins"
+      } else if (profile.role === "mentor") {
+        collectionName = "mentors"
+      } else if (profile.role === "mentee") {
+        collectionName = "mentees"
       }
 
       const userRef = doc(db, collectionName, profile.uid)
@@ -194,11 +202,15 @@ export default function ProfilePage() {
       const downloadURL = await getDownloadURL(imageRef)
 
       // Update user data in appropriate collection
-      let collectionName = "users"
+      let collectionName = "users" // fallback
       if (profile.role === "super-admin") {
         collectionName = "super-admins"
-      } else if (profile.role === "admin") {
+      } else if (profile.role === "admin" || profile.role === "admin+mentor") {
         collectionName = "admins"
+      } else if (profile.role === "mentor") {
+        collectionName = "mentors"
+      } else if (profile.role === "mentee") {
+        collectionName = "mentees"
       }
 
       const userRef = doc(db, collectionName, profile.uid)

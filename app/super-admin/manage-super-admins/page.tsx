@@ -157,6 +157,15 @@ export default function ManageSuperAdmins() {
 
     return (
         <DashboardLayout>
+            <style jsx global>{`
+                .scrollbar-hide {
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
+                }
+                .scrollbar-hide::-webkit-scrollbar {
+                    display: none;
+                }
+            `}</style>
             <div className="container mx-auto py-8 px-6">
                 <div className="flex justify-between items-center mb-8">
                     <div>
@@ -266,36 +275,49 @@ export default function ManageSuperAdmins() {
                         </CardHeader>
                         <CardContent className="p-0">
                             {superAdmins.length > 0 ? (
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Name</TableHead>
-                                            <TableHead>Email</TableHead>
-                                            <TableHead>Created At</TableHead>
-                                            <TableHead>Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {superAdmins.map((admin) => (
-                                            <TableRow key={admin.uid}>
-                                                <TableCell className="font-medium">{admin.name}</TableCell>
-                                                <TableCell>{admin.email || "N/A"}</TableCell>
-                                                <TableCell>{formatDate(admin.createdAt)}</TableCell>
-                                                <TableCell>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        onClick={() => handleDeleteSuperAdmin(admin.uid, admin.name)}
-                                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                                        disabled={admin.uid === userData.uid} // Can't delete self
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </TableCell>
+                                <div className="max-h-96 overflow-auto border rounded-md scrollbar-hide">
+                                    <Table>
+                                        <TableHeader className="sticky top-0 bg-gray-50 z-10 border-b">
+                                            <TableRow className="border-b">
+                                                <TableHead className="border-r px-4 py-3 text-left font-semibold">Name</TableHead>
+                                                <TableHead className="border-r px-4 py-3 text-left font-semibold">Email</TableHead>
+                                                <TableHead className="border-r px-4 py-3 text-left font-semibold">Created At</TableHead>
+                                                <TableHead className="border-r px-4 py-3 text-left font-semibold">Created By</TableHead>
+                                                <TableHead className="px-4 py-3 text-left font-semibold">Actions</TableHead>
                                             </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
+                                        </TableHeader>
+                                        <TableBody>
+                                            {superAdmins.map((admin) => (
+                                                <TableRow key={admin.uid} className="border-b hover:bg-gray-50">
+                                                    <TableCell className="border-r px-4 py-3 font-medium whitespace-nowrap">
+                                                        {admin.name}
+                                                    </TableCell>
+                                                    <TableCell className="border-r px-4 py-3 whitespace-nowrap">
+                                                        {admin.email || "N/A"}
+                                                    </TableCell>
+                                                    <TableCell className="border-r px-4 py-3 text-sm whitespace-nowrap">
+                                                        {formatDate(admin.createdAt)}
+                                                    </TableCell>
+                                                    <TableCell className="border-r px-4 py-3 text-sm whitespace-nowrap">
+                                                        {admin.createdBy || "N/A"}
+                                                    </TableCell>
+                                                    <TableCell className="px-4 py-3 whitespace-nowrap">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => handleDeleteSuperAdmin(admin.uid, admin.name)}
+                                                            className="h-8 px-3 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                                                            disabled={admin.uid === userData.uid} // Can't delete self
+                                                        >
+                                                            <Trash2 className="h-3 w-3 mr-1" />
+                                                            Delete
+                                                        </Button>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))}
+                                        </TableBody>
+                                    </Table>
+                                </div>
                             ) : (
                                 <div className="text-center py-12">
                                     <Shield className="h-12 w-12 text-red-300 mx-auto mb-4" />

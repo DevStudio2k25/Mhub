@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ref, get, set } from "firebase/database"
+import { collection, doc, getDoc, getDocs, setDoc } from "firebase/firestore"
 import { db, auth } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
@@ -39,17 +39,19 @@ export default function AdminDashboard() {
       if (!userData?.uid) return
       
       try {
-        const credentialsRef = ref(db, `adminSettings/${userData.uid}/mentorCredentials`)
-        const snapshot = await get(credentialsRef)
+        const adminRef = doc(db, "admins", userData.uid)
+        const adminDoc = await getDoc(adminRef)
         
-        if (snapshot.exists()) {
-          const savedCredentials = snapshot.val()
-          setMentorCredentials({
-            email: savedCredentials.email || "",
-            password: savedCredentials.password || "",
-            name: savedCredentials.name || ""
-          })
-          setHasSavedCredentials(true)
+        if (adminDoc.exists()) {
+          const adminData = adminDoc.data()
+          if (adminData.mentorCredentials) {
+            setMentorCredentials({
+              email: adminData.mentorCredentials.email || "",
+              password: adminData.mentorCredentials.password || "",
+              name: adminData.mentorCredentials.name || ""
+            })
+            setHasSavedCredentials(true)
+          }
         }
       } catch (error) {
         console.error("Error loading mentor credentials:", error)
@@ -64,22 +66,13 @@ export default function AdminDashboard() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Get all users
-        const usersRef = ref(db, "users")
-        const usersSnapshot = await get(usersRef)
+        // Get mentors count from mentors collection
+        const mentorsSnapshot = await getDocs(collection(db, "mentors"))
+        const mentorCount = mentorsSnapshot.size
 
-        let mentorCount = 0
-        let menteeCount = 0
-
-        if (usersSnapshot.exists()) {
-          const usersData = usersSnapshot.val()
-
-          // Count mentors and mentees
-          Object.values(usersData).forEach((user: any) => {
-            if (user.role === "mentor") mentorCount++
-            if (user.role === "mentee") menteeCount++
-          })
-        }
+        // Get mentees count from mentees collection
+        const menteesSnapshot = await getDocs(collection(db, "mentees"))
+        const menteeCount = menteesSnapshot.size
 
         setStats({
           totalMentors: mentorCount,
@@ -106,8 +99,16 @@ export default function AdminDashboard() {
     
     try {
       setIsSaving(true)
-      const credentialsRef = ref(db, `adminSettings/${userData.uid}/mentorCredentials`)
-      await set(credentialsRef, mentorCredentials)
+      const adminRef = doc(db, "admins", userData.uid)
+      const adminDoc = await getDoc(adminRef)
+      
+      if (adminDoc.exists()) {
+        const currentData = adminDoc.data()
+        await setDoc(adminRef, {
+          ...currentData,
+          mentorCredentials: mentorCredentials
+        }, { merge: true })
+      }
       
       toast({
         title: "Credentials saved",

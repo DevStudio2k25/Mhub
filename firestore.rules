@@ -17,6 +17,20 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/admins/$(request.auth.uid)).data.role == "admin";
     }
     
+    // Helper function to check if user is mentor
+    function isMentor() {
+      return request.auth != null 
+        && exists(/databases/$(database)/documents/mentors/$(request.auth.uid))
+        && get(/databases/$(database)/documents/mentors/$(request.auth.uid)).data.role == "mentor";
+    }
+    
+    // Helper function to check if user is mentee
+    function isMentee() {
+      return request.auth != null 
+        && exists(/databases/$(database)/documents/mentees/$(request.auth.uid))
+        && get(/databases/$(database)/documents/mentees/$(request.auth.uid)).data.role == "mentee";
+    }
+    
     // Super Admin Collection Rules
     match /super-admins/{superAdminId} {
       // Allow first super admin registration (when no super admins exist)
@@ -89,6 +103,11 @@ service cloud.firestore {
       
       // Super admins and admins can create/update/delete mentor accounts
       allow create, update, delete: if isSuperAdmin() || isAdmin();
+      
+      // Mentees can read their assigned mentor's basic info
+      allow read: if isMentee() 
+        && exists(/databases/$(database)/documents/mentees/$(request.auth.uid))
+        && get(/databases/$(database)/documents/mentees/$(request.auth.uid)).data.assignedMentorId == mentorId;
     }
     
     // Mentees Collection
@@ -101,6 +120,99 @@ service cloud.firestore {
       allow read: if isSuperAdmin() || isAdmin();
       
       // Super admins and admins can create/update/delete mentee accounts
+      allow create, update, delete: if isSuperAdmin() || isAdmin();
+      
+      // Mentors can read their assigned mentees' data
+      allow read: if isMentor() 
+        && exists(/databases/$(database)/documents/mentees/$(menteeId))
+        && get(/databases/$(database)/documents/mentees/$(menteeId)).data.assignedMentorId == request.auth.uid;
+    }
+    
+    // Classes Collection - For mentor-created classes
+    match /classes/{classId} {
+      // Mentors can read/write classes they created
+      allow read, write: if request.auth != null 
+        && resource.data.mentorId == request.auth.uid;
+      
+      // Allow creation if mentor is authenticated
+      allow create: if request.auth != null 
+        && request.resource.data.mentorId == request.auth.uid;
+      
+      // Super admins and admins can read all classes
+      allow read: if isSuperAdmin() || isAdmin();
+      
+      // Super admins and admins can create/update/delete classes
+      allow create, update, delete: if isSuperAdmin() || isAdmin();
+    }
+    
+    // Reports Collection - For mentee project reports
+    match /reports/{reportId} {
+      // Mentees can read/write their own reports
+      allow read, write: if request.auth != null 
+        && resource.data.menteeId == request.auth.uid;
+      
+      // Allow creation if mentee is authenticated
+      allow create: if request.auth != null 
+        && request.resource.data.menteeId == request.auth.uid;
+      
+      // Mentors can read reports assigned to them
+      allow read: if request.auth != null 
+        && resource.data.mentorId == request.auth.uid;
+      
+      // Mentors can update report status/feedback
+      allow update: if request.auth != null 
+        && resource.data.mentorId == request.auth.uid;
+      
+      // Super admins and admins can read all reports
+      allow read: if isSuperAdmin() || isAdmin();
+      
+      // Super admins and admins can create/update/delete reports
+      allow create, update, delete: if isSuperAdmin() || isAdmin();
+    }
+    
+    // Queries Collection - For mentee queries to mentors
+    match /queries/{queryId} {
+      // Mentees can read/write their own queries
+      allow read, write: if request.auth != null 
+        && resource.data.menteeId == request.auth.uid;
+      
+      // Allow creation if mentee is authenticated
+      allow create: if request.auth != null 
+        && request.resource.data.menteeId == request.auth.uid;
+      
+      // Mentors can read queries assigned to them
+      allow read: if request.auth != null 
+        && resource.data.mentorId == request.auth.uid;
+      
+      // Mentors can update query status/response
+      allow update: if request.auth != null 
+        && resource.data.mentorId == request.auth.uid;
+      
+      // Super admins and admins can read all queries
+      allow read: if isSuperAdmin() || isAdmin();
+      
+      // Super admins and admins can create/update/delete queries
+      allow create, update, delete: if isSuperAdmin() || isAdmin();
+    }
+    
+    // Sessions Collection - For mentor-mentee sessions
+    match /sessions/{sessionId} {
+      // Mentors can read/write sessions they created
+      allow read, write: if request.auth != null 
+        && resource.data.mentorId == request.auth.uid;
+      
+      // Allow creation if mentor is authenticated
+      allow create: if request.auth != null 
+        && request.resource.data.mentorId == request.auth.uid;
+      
+      // Mentees can read sessions they're part of
+      allow read: if request.auth != null 
+        && resource.data.menteeId == request.auth.uid;
+      
+      // Super admins and admins can read all sessions
+      allow read: if isSuperAdmin() || isAdmin();
+      
+      // Super admins and admins can create/update/delete sessions
       allow create, update, delete: if isSuperAdmin() || isAdmin();
     }
     

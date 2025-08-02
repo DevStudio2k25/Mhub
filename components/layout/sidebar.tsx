@@ -302,11 +302,11 @@ export default function Sidebar() {
               </div>
             ) : (
               <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 font-bold text-lg">
-                {userData.name.charAt(0).toUpperCase()}
+                {userData.name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
             )}
             <div>
-              <p className="font-medium">{userData.name}</p>
+              <p className="font-medium">{userData.name || 'User'}</p>
               <p className="text-sm text-muted-foreground capitalize flex items-center gap-1">
                 <Sparkles size={12} className="text-amber-500" />
                 {userData.role}

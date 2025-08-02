@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ref, get, set, update } from "firebase/database"
+import { collection, doc, getDoc, getDocs, updateDoc, query, where } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
@@ -51,35 +51,39 @@ export default function ManageProfiles() {
     if (!userData) return
 
     try {
-      // Fetch classes
-      const classesRef = ref(db, "classes")
-      const classesSnapshot = await get(classesRef)
+      // Fetch classes created by this mentor from Firestore
+      const classesQuery = query(collection(db, "classes"), where("mentorId", "==", userData.uid))
+      const classesSnapshot = await getDocs(classesQuery)
       const classesData: Class[] = []
 
-      if (classesSnapshot.exists()) {
-        Object.entries(classesSnapshot.val()).forEach(([id, data]: [string, any]) => {
-          if (data.mentorId === userData.uid) {
-            classesData.push({ id, ...data })
-          }
+      classesSnapshot.forEach((doc) => {
+        const data = doc.data()
+        classesData.push({
+          id: doc.id,
+          name: data.name,
+          year: data.year,
+          section: data.section
         })
-      }
+      })
       setClasses(classesData)
 
-      // Fetch mentees
-      const usersRef = ref(db, "users")
-      const usersSnapshot = await get(usersRef)
+      // Fetch mentees assigned to this mentor from Firestore
+      const menteesQuery = query(collection(db, "mentees"), where("assignedMentorId", "==", userData.uid))
+      const menteesSnapshot = await getDocs(menteesQuery)
       const menteesData: Mentee[] = []
 
-      if (usersSnapshot.exists()) {
-        Object.entries(usersSnapshot.val()).forEach(([uid, data]: [string, any]) => {
-          if (data.role === "mentee" && data.assignedMentorId === userData.uid) {
-            menteesData.push({
-              uid,
-              ...data
-            })
-          }
+      menteesSnapshot.forEach((doc) => {
+        const data = doc.data()
+        menteesData.push({
+          uid: doc.id,
+          name: data.name,
+          email: data.email,
+          enrollmentNo: data.enrollmentNo,
+          classId: data.classId,
+          hasEdited: data.hasEdited,
+          profileEditAllowed: data.profileEditAllowed
         })
-      }
+      })
       setMentees(menteesData)
       setLoading(false)
     } catch (error) {
@@ -113,27 +117,22 @@ export default function ManageProfiles() {
       const now = Date.now();
       const expiresAt = now + (24 * 60 * 60 * 1000); // 24 hours from now
 
-      // Update each selected mentee
+      const profileEditData = {
+        allowedAt: now,
+        expiresAt,
+        allowedBy: userData.uid
+      };
+
+      // Update each selected mentee in Firestore
       await Promise.all(
         Array.from(selectedMentees).map(async (menteeId) => {
-          const updates: Record<string, any> = {};
-
-          const profileEditData = {
-            allowedAt: now,
-            expiresAt,
-            allowedBy: userData.uid
-          };
-
-          // Reset hasEdited to false when allowing new edits
-          updates[`users/${menteeId}/hasEdited`] = false;
-          updates[`users/${menteeId}/profileEditAllowed`] = profileEditData;
-
-          // Also update in mentees collection to ensure data consistency
-          updates[`mentees/${menteeId}/hasEdited`] = false;
-          updates[`mentees/${menteeId}/profileEditAllowed`] = profileEditData;
-
-          // Apply both updates atomically
-          await update(ref(db), updates);
+          const menteeRef = doc(db, "mentees", menteeId)
+          
+          // Update mentee document with new profile edit permissions
+          await updateDoc(menteeRef, {
+            hasEdited: false, // Reset hasEdited to false when allowing new edits
+            profileEditAllowed: profileEditData
+          })
         })
       );
 
@@ -205,8 +204,13 @@ export default function ManageProfiles() {
                 </Button>
               </div>
 
-              <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
-                {getFilteredMentees().map(mentee => (
+              {loading ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-amber-500"></div>
+                </div>
+              ) : (
+                <div className="grid gap-3 sm:gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+                  {getFilteredMentees().map(mentee => (
                   <Card key={mentee.uid} className={`relative min-h-[140px] ${isProfileEditAllowed(mentee) ? 'border-green-200 bg-green-50' : ''
                     }`}>
                     <CardContent className="pt-4 sm:pt-6 px-4 sm:px-6 pb-4 sm:pb-6">
@@ -248,8 +252,9 @@ export default function ManageProfiles() {
                       </div>
                     </CardContent>
                   </Card>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
