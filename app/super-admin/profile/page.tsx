@@ -22,7 +22,10 @@ import { formatDate } from "@/lib/utils"
 
 interface SuperAdminProfile {
     uid: string
-    name: string
+    firstName?: string
+    lastName?: string
+    middleName?: string
+    name?: string // Keep for backward compatibility
     email: string | null
     role: string
     superAdminId: string
@@ -50,6 +53,17 @@ export default function SuperAdminProfile() {
     const [uploadingImage, setUploadingImage] = useState(false)
     const fileInputRef = useRef<HTMLInputElement>(null)
 
+    // Helper function to get full name
+    const getFullName = (profileData: SuperAdminProfile) => {
+        if (profileData.firstName && profileData.lastName) {
+            return profileData.middleName
+                ? `${profileData.firstName} ${profileData.middleName} ${profileData.lastName}`
+                : `${profileData.firstName} ${profileData.lastName}`
+        }
+        // Fallback to old name field
+        return profileData.name || 'Unknown'
+    }
+
     useEffect(() => {
         const fetchProfile = async () => {
             if (!userData || userData.role !== "super-admin") return
@@ -62,7 +76,10 @@ export default function SuperAdminProfile() {
                     const data = superAdminDoc.data()
                     const profileData: SuperAdminProfile = {
                         uid: userData.uid,
-                        name: data?.name || "Unknown",
+                        firstName: data?.firstName,
+                        lastName: data?.lastName,
+                        middleName: data?.middleName,
+                        name: data?.name, // Keep for backward compatibility
                         email: data?.email || null,
                         role: data?.role || "super-admin",
                         superAdminId: data?.superAdminId || "",
@@ -121,7 +138,19 @@ export default function SuperAdminProfile() {
             // Only update fields that have changed
             const updates: Partial<SuperAdminProfile> = {}
 
-            if (editedProfile.name !== profile.name) updates.name = editedProfile.name
+            if (editedProfile.firstName !== profile.firstName) updates.firstName = editedProfile.firstName
+            if (editedProfile.lastName !== profile.lastName) updates.lastName = editedProfile.lastName
+            if (editedProfile.middleName !== profile.middleName) updates.middleName = editedProfile.middleName
+
+            // Update the full name for backward compatibility
+            if (updates.firstName || updates.lastName || updates.middleName) {
+                const newFirstName = editedProfile.firstName || profile.firstName || ""
+                const newLastName = editedProfile.lastName || profile.lastName || ""
+                const newMiddleName = editedProfile.middleName || profile.middleName
+                updates.name = newMiddleName
+                    ? `${newFirstName} ${newMiddleName} ${newLastName}`
+                    : `${newFirstName} ${newLastName}`
+            }
             if (editedProfile.phone !== profile.phone) updates.phone = editedProfile.phone
             if (editedProfile.address !== profile.address) updates.address = editedProfile.address
 
@@ -217,7 +246,7 @@ export default function SuperAdminProfile() {
                                             <Shield className="h-6 w-6 sm:h-8 sm:w-8" />
                                         </div>
                                         <div className="min-w-0 flex-1">
-                                            <CardTitle className="text-lg sm:text-xl lg:text-2xl font-bold break-words">{profile.name}</CardTitle>
+                                            <CardTitle className="text-lg sm:text-xl lg:text-2xl font-bold break-words">{getFullName(profile)}</CardTitle>
                                             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 mt-2">
                                                 <Badge className="bg-white/20 text-white border-white/30 text-xs">
                                                     Super Administrator
@@ -241,7 +270,7 @@ export default function SuperAdminProfile() {
                                                 {profile.photoURL ? (
                                                     <Image
                                                         src={profile.photoURL}
-                                                        alt={profile.name}
+                                                        alt={getFullName(profile)}
                                                         fill
                                                         className="object-cover transition-transform duration-300"
                                                     />
@@ -306,20 +335,58 @@ export default function SuperAdminProfile() {
 
                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                                                     <div className="space-y-1">
-                                                        <Label htmlFor="name" className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                        <Label htmlFor="firstName" className="flex items-center gap-2 text-xs font-medium text-gray-700">
                                                             <User className="h-3 w-3 text-red-500 flex-shrink-0" />
-                                                            <span>Full Name</span>
+                                                            <span>First Name</span>
                                                         </Label>
                                                         {isEditing ? (
                                                             <Input
-                                                                id="name"
-                                                                value={editedProfile.name || ""}
-                                                                onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
+                                                                id="firstName"
+                                                                value={editedProfile.firstName || ""}
+                                                                onChange={(e) => setEditedProfile({ ...editedProfile, firstName: e.target.value })}
                                                                 className="text-sm transition-all duration-200 border-gray-300 focus:border-red-500 focus:ring-red-500 focus:ring-2"
                                                             />
                                                         ) : (
                                                             <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md break-words">
-                                                                {profile.name}
+                                                                {profile.firstName || "-"}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="lastName" className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <User className="h-3 w-3 text-red-500 flex-shrink-0" />
+                                                            <span>Last Name</span>
+                                                        </Label>
+                                                        {isEditing ? (
+                                                            <Input
+                                                                id="lastName"
+                                                                value={editedProfile.lastName || ""}
+                                                                onChange={(e) => setEditedProfile({ ...editedProfile, lastName: e.target.value })}
+                                                                className="text-sm transition-all duration-200 border-gray-300 focus:border-red-500 focus:ring-red-500 focus:ring-2"
+                                                            />
+                                                        ) : (
+                                                            <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md break-words">
+                                                                {profile.lastName || "-"}
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="space-y-1">
+                                                        <Label htmlFor="middleName" className="flex items-center gap-2 text-xs font-medium text-gray-700">
+                                                            <User className="h-3 w-3 text-red-500 flex-shrink-0" />
+                                                            <span>Middle Name (Optional)</span>
+                                                        </Label>
+                                                        {isEditing ? (
+                                                            <Input
+                                                                id="middleName"
+                                                                value={editedProfile.middleName || ""}
+                                                                onChange={(e) => setEditedProfile({ ...editedProfile, middleName: e.target.value })}
+                                                                className="text-sm transition-all duration-200 border-gray-300 focus:border-red-500 focus:ring-red-500 focus:ring-2"
+                                                            />
+                                                        ) : (
+                                                            <div className="p-2 bg-white rounded-lg border text-sm shadow-sm transition-all duration-200 hover:shadow-md break-words">
+                                                                {profile.middleName || "-"}
                                                             </div>
                                                         )}
                                                     </div>

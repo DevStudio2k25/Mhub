@@ -88,10 +88,14 @@ export async function POST(request: NextRequest) {
 
     // Create admin account using Firebase Admin SDK
     console.log('🔨 Creating Firebase Auth account...')
+    const displayName = adminData.middleName 
+      ? `${adminData.firstName} ${adminData.middleName} ${adminData.lastName}`
+      : `${adminData.firstName} ${adminData.lastName}`
+    
     const userRecord = await adminAuth.createUser({
       email: adminData.email,
       password: adminData.password,
-      displayName: `${adminData.firstName} ${adminData.lastName}`,
+      displayName,
       emailVerified: true,
     })
     console.log('✅ Auth account created:', userRecord.uid)
@@ -103,6 +107,7 @@ export async function POST(request: NextRequest) {
       email: userRecord.email,
       firstName: adminData.firstName,
       lastName: adminData.lastName,
+      middleName: adminData.middleName || undefined,
       adminId: adminData.adminId,
       role: 'admin',
       createdBy: decodedToken.uid,
@@ -117,10 +122,14 @@ export async function POST(request: NextRequest) {
     console.log('✅ Admin data saved to Firestore')
 
     console.log('🎉 Single admin creation completed successfully')
+    const fullName = adminData.middleName 
+      ? `${adminData.firstName} ${adminData.middleName} ${adminData.lastName}`
+      : `${adminData.firstName} ${adminData.lastName}`
+    
     return NextResponse.json({
       success: true,
       admin: adminDocData,
-      message: `Admin ${adminData.firstName} ${adminData.lastName} (${adminData.adminId}) created successfully`
+      message: `Admin ${fullName} (${adminData.adminId}) created successfully`
     })
 
   } catch (error: any) {

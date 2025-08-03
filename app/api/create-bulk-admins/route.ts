@@ -101,10 +101,14 @@ export async function POST(request: NextRequest) {
       try {
         // Create admin account using Firebase Admin SDK
         console.log('🔨 Creating Firebase Auth account...')
+        const displayName = adminData.middleName 
+          ? `${adminData.firstName} ${adminData.middleName} ${adminData.lastName}`
+          : `${adminData.firstName} ${adminData.lastName}`
+        
         const userRecord = await adminAuth.createUser({
           email: adminData.email,
           password: adminData.password,
-          displayName: `${adminData.firstName} ${adminData.lastName}`,
+          displayName,
           emailVerified: true,
         })
         console.log('✅ Auth account created:', userRecord.uid)
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
           email: userRecord.email,
           firstName: adminData.firstName,
           lastName: adminData.lastName,
+          middleName: adminData.middleName || undefined,
           adminId: adminData.adminId,
           role: 'admin',
           createdBy: decodedToken.uid,

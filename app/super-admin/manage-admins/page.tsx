@@ -22,6 +22,7 @@ interface Admin {
   uid: string
   firstName: string
   lastName: string
+  middleName?: string
   adminId: string
   email: string | null
   password?: string // Store password for export purposes
@@ -42,6 +43,7 @@ export default function ManageAdmins() {
   const [newAdmin, setNewAdmin] = useState({
     firstName: "",
     lastName: "",
+    middleName: "",
     email: "",
     password: ""
   })
@@ -488,7 +490,7 @@ export default function ManageAdmins() {
       console.log("🔄 Local state updated with new admin")
 
       // Reset form
-      setNewAdmin({ firstName: "", lastName: "", email: "", password: "" })
+      setNewAdmin({ firstName: "", lastName: "", middleName: "", email: "", password: "" })
       setAdminPassword("")
       setIsDialogOpen(false)
       console.log("🧹 Form reset and dialog closed")
@@ -901,7 +903,7 @@ export default function ManageAdmins() {
                     )}
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="firstName">First Name</Label>
+                        <Label htmlFor="firstName">First Name *</Label>
                         <Input
                           id="firstName"
                           value={newAdmin.firstName}
@@ -910,7 +912,7 @@ export default function ManageAdmins() {
                         />
                       </div>
                       <div>
-                        <Label htmlFor="lastName">Last Name</Label>
+                        <Label htmlFor="lastName">Last Name *</Label>
                         <Input
                           id="lastName"
                           value={newAdmin.lastName}
@@ -918,6 +920,15 @@ export default function ManageAdmins() {
                           placeholder="Enter last name"
                         />
                       </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="middleName">Middle Name (Optional)</Label>
+                      <Input
+                        id="middleName"
+                        value={newAdmin.middleName}
+                        onChange={(e) => setNewAdmin({ ...newAdmin, middleName: e.target.value })}
+                        placeholder="Enter middle name (optional)"
+                      />
                     </div>
                     <div>
                       <Label htmlFor="email">Email Address</Label>

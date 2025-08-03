@@ -13,7 +13,9 @@ import { Shield, Eye, EyeOff, User, Mail, Lock, Key, Building, BookOpen, Check, 
 import { Checkbox } from "@/components/ui/checkbox"
 
 export default function Register() {
-  const [name, setName] = useState("")
+  const [firstName, setFirstName] = useState("")
+  const [lastName, setLastName] = useState("")
+  const [middleName, setMiddleName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -51,8 +53,8 @@ export default function Register() {
     e.preventDefault()
     setError("")
 
-    if (!name || !email || !password || !confirmPassword) {
-      setError("Please fill all fields")
+    if (!firstName || !lastName || !email || !password || !confirmPassword) {
+      setError("Please fill all required fields")
       return
     }
 
@@ -100,10 +102,17 @@ export default function Register() {
       const superAdminUser = superAdminCredential.user
 
       // Save super admin data to super-admins collection
+      const fullName = middleName 
+        ? `${firstName} ${middleName} ${lastName}`
+        : `${firstName} ${lastName}`
+      
       const superAdminData = {
         uid: superAdminUser.uid,
         email: superAdminUser.email,
-        name: name,
+        firstName: firstName,
+        lastName: lastName,
+        middleName: middleName || undefined,
+        name: fullName, // Keep for backward compatibility
         role: "super-admin",
         superAdminId: superAdminId,
         organization: "UEM College",
@@ -182,15 +191,15 @@ export default function Register() {
 
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="name" className="text-sm font-medium text-gray-700">Full Name *</Label>
+                    <Label htmlFor="firstName" className="text-sm font-medium text-gray-700">First Name *</Label>
                     <div className="relative mt-1">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                       <Input
-                        id="name"
+                        id="firstName"
                         type="text"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        placeholder="Enter your full name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="Enter your first name"
                         className="pl-10 border-gray-300 focus:border-red-500 focus:ring-red-500"
                         required
                       />
@@ -198,19 +207,50 @@ export default function Register() {
                   </div>
 
                   <div>
-                    <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email Address *</Label>
+                    <Label htmlFor="lastName" className="text-sm font-medium text-gray-700">Last Name *</Label>
                     <div className="relative mt-1">
-                      <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                       <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="admin@uem.edu.in"
+                        id="lastName"
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Enter your last name"
                         className="pl-10 border-gray-300 focus:border-red-500 focus:ring-red-500"
                         required
                       />
                     </div>
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="middleName" className="text-sm font-medium text-gray-700">Middle Name (Optional)</Label>
+                  <div className="relative mt-1">
+                    <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      id="middleName"
+                      type="text"
+                      value={middleName}
+                      onChange={(e) => setMiddleName(e.target.value)}
+                      placeholder="Enter your middle name (optional)"
+                      className="pl-10 border-gray-300 focus:border-red-500 focus:ring-red-500"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <Label htmlFor="email" className="text-sm font-medium text-gray-700">Email Address *</Label>
+                  <div className="relative mt-1">
+                    <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      id="email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="admin@uem.edu.in"
+                      className="pl-10 border-gray-300 focus:border-red-500 focus:ring-red-500"
+                      required
+                    />
                   </div>
                 </div>
               </div>

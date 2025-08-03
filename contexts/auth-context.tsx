@@ -10,29 +10,38 @@ import {
   signOut,
   onAuthStateChanged,
 } from "firebase/auth"
-import { collection, doc, setDoc, getDoc } from "firebase/firestore"
+import { doc, setDoc, getDoc } from "firebase/firestore"
 import { auth, db } from "@/lib/firebase"
 import { useMounted } from "@/hooks/use-mounted"
 
-type UserRole = "super-admin" | "admin" | "mentor" | "mentee" | "admin+mentor"
+type UserRole = "super-admin" | "admin" | "mentor" | "mentee"
 
 interface UserData {
   uid: string
   email: string | null
-  name: string
+  firstName: string
+  lastName: string
+  middleName?: string
+  isActive: boolean
   role: UserRole
+  canBeMentor?: boolean // Admin can also be mentor
+  currentRole?: UserRole // Currently active role for switching
   assignedMentorId?: string
   profileImage?: string
   photoURL?: string
+  // Keep name for backward compatibility
+  name?: string
 }
 
 interface AuthContextType {
   user: User | null
   userData: UserData | null
   loading: boolean
-  signUp: (email: string, password: string, name: string, role: UserRole, mentorId?: string) => Promise<void>
+  signUp: (email: string, password: string, firstName: string, lastName: string, role: UserRole, mentorId?: string, middleName?: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
+  switchRole: (newRole: UserRole) => void
+  getAvailableRoles: () => UserRole[]
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -103,7 +112,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => unsubscribe()
   }, [mounted])
 
-  const signUp = async (email: string, password: string, name: string, role: UserRole, mentorId?: string) => {
+  const signUp = async (email: string, password: string, firstName: string, lastName: string, role: UserRole, mentorId?: string, middleName?: string) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password)
       const user = userCredential.user
@@ -112,7 +121,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const userData: UserData = {
         uid: user.uid,
         email: user.email,
-        name,
+        firstName,
+        lastName,
+        middleName: middleName || undefined,
+        isActive: true,
+        // Create full name for backward compatibility
+        name: middleName ? `${firstName} ${middleName} ${lastName}` : `${firstName} ${lastName}`,
         role,
         ...(role === "mentee" && mentorId ? { assignedMentorId: mentorId } : {}),
       }
@@ -124,7 +138,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           collectionName = "super-admins"
           break
         case "admin":
-        case "admin+mentor":
           collectionName = "admins"
           break
         case "mentor":
@@ -163,17 +176,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const switchRole = (newRole: UserRole) => {
+    if (userData && getAvailableRoles().includes(newRole)) {
+      setUserData({
+        ...userData,
+        currentRole: newRole
+      })
+    }
+  }
+
+  const getAvailableRoles = (): UserRole[] => {
+    if (!userData) return []
+    
+    const roles: UserRole[] = [userData.role]
+    
+    // If admin can be mentor, add mentor role
+    if (userData.role === "admin" && userData.canBeMentor) {
+      roles.push("mentor")
+    }
+    
+    return roles
+  }
+
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
     return (
-      <AuthContext.Provider value={{ user: null, userData: null, loading: true, signUp, signIn, logout }}>
+      <AuthContext.Provider value={{ user: null, userData: null, loading: true, signUp, signIn, logout, switchRole, getAvailableRoles }}>
         {children}
       </AuthContext.Provider>
     )
   }
 
   return (
-    <AuthContext.Provider value={{ user, userData, loading, signUp, signIn, logout }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ user, userData, loading, signUp, signIn, logout, switchRole, getAvailableRoles }}>{children}</AuthContext.Provider>
   )
 }
 

@@ -132,9 +132,11 @@ export default function ViewAdminProfile() {
                             <p className="text-muted-foreground text-lg mt-1">View admin account details</p>
                         </div>
                     </div>
-                    <Badge className={`${profile.role === "admin+mentor" ? "bg-purple-100 text-purple-800 border-purple-200" : "bg-amber-100 text-amber-800 border-amber-200"}`}>
-                        {profile.role}
-                    </Badge>
+                    <div className="ml-4">
+                        <Badge className={`${profile.role === "admin+mentor" ? "bg-purple-100 text-purple-800 border-purple-200" : "bg-amber-100 text-amber-800 border-amber-200"}`}>
+                            {profile.role}
+                        </Badge>
+                    </div>
                 </div>
 
                 {/* Profile Card */}

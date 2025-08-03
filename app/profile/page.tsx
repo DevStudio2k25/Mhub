@@ -20,7 +20,10 @@ import { useRouter } from "next/navigation"
 
 interface UserProfile {
   uid: string
-  name: string
+  firstName?: string
+  lastName?: string
+  middleName?: string
+  name?: string // Keep for backward compatibility
   email: string
   role: string
   photoURL?: string
@@ -47,6 +50,17 @@ export default function ProfilePage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
+  // Helper function to get full name
+  const getFullName = (profileData: UserProfile) => {
+    if (profileData.firstName && profileData.lastName) {
+      return profileData.middleName
+        ? `${profileData.firstName} ${profileData.middleName} ${profileData.lastName}`
+        : `${profileData.firstName} ${profileData.lastName}`
+    }
+    // Fallback to old name field
+    return profileData.name || 'Unknown'
+  }
+
   useEffect(() => {
     const fetchProfile = async () => {
       if (!userData) return
@@ -72,7 +86,10 @@ export default function ProfilePage() {
           const data = userDoc.data()
           const profileData: UserProfile = {
             uid: userData.uid,
-            name: data?.name || "Unknown",
+            firstName: data?.firstName,
+            lastName: data?.lastName,
+            middleName: data?.middleName,
+            name: data?.name, // Keep for backward compatibility
             email: data?.email || userData.email || "",
             role: data?.role || userData.role,
             photoURL: data?.photoURL,
@@ -140,7 +157,19 @@ export default function ProfilePage() {
       // Only update fields that have changed
       const updates: Partial<UserProfile> = {}
 
-      if (editedProfile.name !== profile.name) updates.name = editedProfile.name
+      if (editedProfile.firstName !== profile.firstName) updates.firstName = editedProfile.firstName
+      if (editedProfile.lastName !== profile.lastName) updates.lastName = editedProfile.lastName
+      if (editedProfile.middleName !== profile.middleName) updates.middleName = editedProfile.middleName
+
+      // Update the full name for backward compatibility
+      if (updates.firstName || updates.lastName || updates.middleName) {
+        const newFirstName = editedProfile.firstName || profile.firstName || ""
+        const newLastName = editedProfile.lastName || profile.lastName || ""
+        const newMiddleName = editedProfile.middleName || profile.middleName
+        updates.name = newMiddleName
+          ? `${newFirstName} ${newMiddleName} ${newLastName}`
+          : `${newFirstName} ${newLastName}`
+      }
 
       // For mentees, update additional fields
       if (profile.role === "mentee") {
@@ -249,29 +278,28 @@ export default function ProfilePage() {
           <div className="grid gap-6">
             <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
               <CardHeader className="bg-gradient-to-r from-amber-500 to-amber-400 text-white pb-8">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-2xl font-bold flex items-center gap-2">
-                    {profile.role === "admin" && <ShieldCheck className="h-6 w-6" />}
-                    {profile.role === "mentor" && <UserCog className="h-6 w-6" />}
-                    {profile.role === "mentee" && <UserCheck className="h-6 w-6" />}
-                    {profile.name}
+                <div className="text-center">
+                  <CardTitle className="text-lg sm:text-xl lg:text-2xl font-semibold leading-tight">
+                    {/* Show icon only on larger screens */}
+                    <div className="hidden sm:flex items-center justify-center gap-2">
+                      {profile.role === "admin" && <ShieldCheck className="h-6 w-6" />}
+                      {profile.role === "mentor" && <UserCog className="h-6 w-6" />}
+                      {profile.role === "mentee" && <UserCheck className="h-6 w-6" />}
+                      <span className="truncate">{getFullName(profile)}</span>
+                    </div>
+                    {/* Show only name on mobile */}
+                    <div className="sm:hidden">
+                      <span className="truncate block">{getFullName(profile)}</span>
+                    </div>
                   </CardTitle>
-                  {!isEditing && (
-                    <Button
-                      onClick={handleEdit}
-                      variant="ghost"
-                      className="text-white hover:bg-white/20"
-                    >
-                      <Edit className="h-4 w-4 mr-2" />
-                      Edit Profile
-                    </Button>
-                  )}
-                </div>
-                <div className="text-white/80 capitalize flex items-center gap-1 mt-1">
-                  {profile.role === "admin" && <ShieldCheck className="h-4 w-4" />}
-                  {profile.role === "mentor" && <UserCog className="h-4 w-4" />}
-                  {profile.role === "mentee" && <GraduationCap className="h-4 w-4" />}
-                  {profile.role}
+                  <div className="flex items-center justify-center mt-3">
+                    <div className="bg-white/20 backdrop-blur-sm border border-white/30 rounded-full px-3 py-1 flex items-center gap-2">
+                      {profile.role === "admin" && <ShieldCheck className="h-4 w-4 text-white" />}
+                      {profile.role === "mentor" && <UserCog className="h-4 w-4 text-white" />}
+                      {profile.role === "mentee" && <GraduationCap className="h-4 w-4 text-white" />}
+                      <span className="text-white font-semibold capitalize text-sm">{profile.role}</span>
+                    </div>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="p-0">
@@ -280,7 +308,7 @@ export default function ProfilePage() {
                     {profile.photoURL ? (
                       <Image
                         src={profile.photoURL}
-                        alt={profile.name}
+                        alt={getFullName(profile)}
                         fill
                         className="object-cover"
                       />
@@ -315,22 +343,70 @@ export default function ProfilePage() {
                   {error && <div className="p-3 mb-4 text-sm text-white bg-red-500 rounded-md">{error}</div>}
                   {success && <div className="p-3 mb-4 text-sm text-white bg-green-500 rounded-md">{success}</div>}
 
+                  {/* Edit Profile Button */}
+                  {!isEditing && (
+                    <div className="flex justify-center mb-6">
+                      <Button
+                        onClick={handleEdit}
+                        className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200"
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Edit Profile
+                      </Button>
+                    </div>
+                  )}
+
                   <div className="grid gap-6">
                     <div className="grid md:grid-cols-2 gap-6">
                       <div>
-                        <Label htmlFor="name" className="flex items-center gap-2">
+                        <Label htmlFor="firstName" className="flex items-center gap-2">
                           <User className="h-4 w-4 text-amber-500" />
-                          Full Name
+                          First Name
                         </Label>
                         {isEditing ? (
                           <Input
-                            id="name"
-                            value={editedProfile.name || ""}
-                            onChange={(e) => setEditedProfile({ ...editedProfile, name: e.target.value })}
+                            id="firstName"
+                            value={editedProfile.firstName || ""}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, firstName: e.target.value })}
                             className="mt-1"
                           />
                         ) : (
-                          <div className="mt-1 p-3 bg-amber-50 rounded-md font-medium">{profile.name}</div>
+                          <div className="mt-1 p-3 bg-amber-50 rounded-md font-medium">{profile.firstName || "-"}</div>
+                        )}
+                      </div>
+                      <div>
+                        <Label htmlFor="lastName" className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-amber-500" />
+                          Last Name
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            id="lastName"
+                            value={editedProfile.lastName || ""}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, lastName: e.target.value })}
+                            className="mt-1"
+                          />
+                        ) : (
+                          <div className="mt-1 p-3 bg-amber-50 rounded-md font-medium">{profile.lastName || "-"}</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                        <Label htmlFor="middleName" className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-amber-500" />
+                          Middle Name (Optional)
+                        </Label>
+                        {isEditing ? (
+                          <Input
+                            id="middleName"
+                            value={editedProfile.middleName || ""}
+                            onChange={(e) => setEditedProfile({ ...editedProfile, middleName: e.target.value })}
+                            className="mt-1"
+                          />
+                        ) : (
+                          <div className="mt-1 p-3 bg-amber-50 rounded-md font-medium">{profile.middleName || "-"}</div>
                         )}
                       </div>
                       <div>

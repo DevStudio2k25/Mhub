@@ -4,12 +4,14 @@ import type React from "react"
 
 import { useAuth } from "@/contexts/auth-context"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import Sidebar from "./sidebar"
+import MobileAppBar from "./mobile-app-bar"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, userData, loading } = useAuth()
   const router = useRouter()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -31,8 +33,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex flex-col lg:flex-row min-h-screen bg-amber-50/30">
-      <Sidebar />
-      <main className="flex-1 p-4 lg:p-8 overflow-auto">{children}</main>
+      <Sidebar isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
+      <div className="flex-1 flex flex-col">
+        <MobileAppBar isMobileMenuOpen={isMobileMenuOpen} setIsMobileMenuOpen={setIsMobileMenuOpen} />
+        <main className="flex-1 p-4 lg:p-8 overflow-auto">{children}</main>
+      </div>
     </div>
   )
 }

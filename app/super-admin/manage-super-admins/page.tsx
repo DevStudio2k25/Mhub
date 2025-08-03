@@ -15,14 +15,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Shield, Plus, Trash2, Eye, EyeOff } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { formatDate } from "@/lib/utils"
-import { set } from "date-fns"
 
 interface SuperAdmin {
     uid: string
-    name: string
+    firstName?: string
+    lastName?: string
+    middleName?: string
+    name: string // Keep for backward compatibility
     email: string | null
     createdAt: string
     createdBy: string | undefined
+    isActive?: boolean
 }
 
 export default function ManageSuperAdmins() {
@@ -35,7 +38,9 @@ export default function ManageSuperAdmins() {
     const [showPassword, setShowPassword] = useState(false)
     const [adminPassword, setAdminPassword] = useState("")
     const [newSuperAdmin, setNewSuperAdmin] = useState({
-        name: "",
+        firstName: "",
+        lastName: "",
+        middleName: "",
         email: "",
         password: ""
     })
@@ -68,8 +73,8 @@ export default function ManageSuperAdmins() {
     }, [userData])
 
     const handleCreateSuperAdmin = async () => {
-        if (!newSuperAdmin.name || !newSuperAdmin.email || !newSuperAdmin.password) {
-            setError("Please fill all fields")
+        if (!newSuperAdmin.firstName || !newSuperAdmin.lastName || !newSuperAdmin.email || !newSuperAdmin.password) {
+            setError("Please fill all required fields")
             return
         }
 
@@ -91,13 +96,21 @@ export default function ManageSuperAdmins() {
             const superAdminUser = superAdminCredential.user
 
             // Save super admin data to super-admins collection
+            const fullName = newSuperAdmin.middleName
+                ? `${newSuperAdmin.firstName} ${newSuperAdmin.middleName} ${newSuperAdmin.lastName}`
+                : `${newSuperAdmin.firstName} ${newSuperAdmin.lastName}`
+
             const superAdminData = {
                 uid: superAdminUser.uid,
                 email: superAdminUser.email,
-                name: newSuperAdmin.name,
+                firstName: newSuperAdmin.firstName,
+                lastName: newSuperAdmin.lastName,
+                middleName: newSuperAdmin.middleName || undefined,
+                name: fullName, // Keep for backward compatibility
                 role: "super-admin",
                 createdBy: currentAdminUid,
-                createdAt: new Date().toISOString()
+                createdAt: new Date().toISOString(),
+                isActive: true
             }
 
             await setDoc(doc(db, "super-admins", superAdminUser.uid), superAdminData)
@@ -114,13 +127,13 @@ export default function ManageSuperAdmins() {
             setSuperAdmins([...superAdmins, superAdminData])
 
             // Reset form
-            setNewSuperAdmin({ name: "", email: "", password: "" })
+            setNewSuperAdmin({ firstName: "", lastName: "", middleName: "", email: "", password: "" })
             setAdminPassword("")
             setIsDialogOpen(false)
 
             toast({
                 title: "Super Admin created successfully",
-                description: `${newSuperAdmin.name} has been added as a super administrator.`
+                description: `${fullName} has been added as a super administrator.`
             })
         } catch (error: any) {
             console.error("Error creating super admin:", error)
@@ -195,13 +208,33 @@ export default function ManageSuperAdmins() {
                                         {error}
                                     </div>
                                 )}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label htmlFor="firstName">First Name *</Label>
+                                        <Input
+                                            id="firstName"
+                                            value={newSuperAdmin.firstName}
+                                            onChange={(e) => setNewSuperAdmin({ ...newSuperAdmin, firstName: e.target.value })}
+                                            placeholder="Enter first name"
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="lastName">Last Name *</Label>
+                                        <Input
+                                            id="lastName"
+                                            value={newSuperAdmin.lastName}
+                                            onChange={(e) => setNewSuperAdmin({ ...newSuperAdmin, lastName: e.target.value })}
+                                            placeholder="Enter last name"
+                                        />
+                                    </div>
+                                </div>
                                 <div>
-                                    <Label htmlFor="name">Full Name</Label>
+                                    <Label htmlFor="middleName">Middle Name (Optional)</Label>
                                     <Input
-                                        id="name"
-                                        value={newSuperAdmin.name}
-                                        onChange={(e) => setNewSuperAdmin({ ...newSuperAdmin, name: e.target.value })}
-                                        placeholder="Enter full name"
+                                        id="middleName"
+                                        value={newSuperAdmin.middleName}
+                                        onChange={(e) => setNewSuperAdmin({ ...newSuperAdmin, middleName: e.target.value })}
+                                        placeholder="Enter middle name (optional)"
                                     />
                                 </div>
                                 <div>
@@ -290,7 +323,11 @@ export default function ManageSuperAdmins() {
                                             {superAdmins.map((admin) => (
                                                 <TableRow key={admin.uid} className="border-b hover:bg-gray-50">
                                                     <TableCell className="border-r px-4 py-3 font-medium whitespace-nowrap">
-                                                        {admin.name}
+                                                        {admin.firstName && admin.lastName
+                                                            ? (admin.middleName
+                                                                ? `${admin.firstName} ${admin.middleName} ${admin.lastName}`
+                                                                : `${admin.firstName} ${admin.lastName}`)
+                                                            : admin.name}
                                                     </TableCell>
                                                     <TableCell className="border-r px-4 py-3 whitespace-nowrap">
                                                         {admin.email || "N/A"}
