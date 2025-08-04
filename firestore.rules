@@ -79,6 +79,20 @@ service cloud.firestore {
         && request.auth.uid == adminId;
     }
     
+    // Linked Accounts Collection - For Admin ↔ Mentor Account Switching
+    match /linkedAccounts/{linkId} {
+      // Super admins can create, read, update, delete all linked accounts
+      allow create, read, update, delete: if isSuperAdmin();
+      
+      // Admins can read linked accounts where they are the adminUID
+      allow read: if request.auth != null 
+        && resource.data.adminUID == request.auth.uid;
+      
+      // Mentors can read linked accounts where they are the mentorUID
+      allow read: if request.auth != null 
+        && resource.data.mentorUID == request.auth.uid;
+    }
+    
     // Users Collection (for mentors, mentees, etc.)
     match /users/{userId} {
       // Users can read/write their own data

@@ -34,7 +34,7 @@ interface AdminProfile {
     name: string
     email: string
     role: "admin"
-    canBeMentor?: boolean
+
     adminId: string
     createdAt: string
     createdBy: string
@@ -72,7 +72,7 @@ export default function AdminProfile() {
                         name: data.name || `${data.firstName} ${data.lastName}`,
                         email: data.email || "",
                         role: "admin",
-                        canBeMentor: data.canBeMentor || false,
+
                         adminId: data.adminId || "",
                         createdAt: data.createdAt || "",
                         createdBy: data.createdBy || "",
@@ -167,9 +167,9 @@ export default function AdminProfile() {
 
                         {/* Role Badge - Better positioned for mobile */}
                         <div className="flex items-center gap-2 self-start sm:self-center">
-                            {profile?.canBeMentor ? <UserCog className="h-5 w-5 text-purple-600" /> : <ShieldCheck className="h-5 w-5 text-amber-600" />}
-                            <Badge className={`${profile?.canBeMentor ? "bg-purple-100 text-purple-800 border-purple-200" : "bg-amber-100 text-amber-800 border-amber-200"} text-sm px-3 py-1`}>
-                                {profile?.canBeMentor ? "Admin + Mentor" : "Administrator"}
+                                            <ShieldCheck className="h-5 w-5 text-amber-600" />
+                <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-sm px-3 py-1">
+                  Administrator
                             </Badge>
                         </div>
                     </div>
@@ -178,7 +178,7 @@ export default function AdminProfile() {
                 {/* Profile Card with Mobile-Optimized Layout */}
                 <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
                     {/* Header Section - Redesigned for better mobile experience */}
-                    <CardHeader className={`bg-gradient-to-r ${profile?.canBeMentor ? "from-purple-500 to-purple-700" : "from-amber-500 to-amber-700"} text-white`}>
+                    <CardHeader className="bg-gradient-to-r from-amber-500 to-amber-700 text-white">
                         <div className="flex flex-col items-center text-center space-y-4 sm:flex-row sm:text-left sm:space-y-0 sm:space-x-6">
                             {/* Profile Image */}
                             <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-2xl relative overflow-hidden flex-shrink-0">
@@ -327,8 +327,8 @@ export default function AdminProfile() {
                                     <div className="bg-gray-50 p-3 rounded-md">
                                         <Label className="text-sm text-gray-500">Role</Label>
                                         <div className="mt-1">
-                                            <Badge className={profile?.canBeMentor ? "bg-purple-100 text-purple-800" : "bg-amber-100 text-amber-800"}>
-                                                {profile?.canBeMentor ? "Admin + Mentor" : "Administrator"}
+                                            <Badge className="bg-amber-100 text-amber-800">
+                                                Administrator
                                             </Badge>
                                         </div>
                                     </div>
@@ -366,39 +366,7 @@ export default function AdminProfile() {
                     </CardContent>
                 </Card>
 
-                {/* Role-specific Information */}
-                {profile?.canBeMentor && (
-                    <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
-                        <CardHeader className="bg-gradient-to-r from-purple-500 to-purple-700 text-white">
-                            <CardTitle className="flex items-center text-lg sm:text-xl">
-                                <Shield className="h-5 w-5 mr-2" />
-                                Admin + Mentor Privileges
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent className="p-4 sm:p-6">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="bg-purple-50 p-4 rounded-lg">
-                                    <h4 className="font-semibold text-purple-800 mb-2">Admin Capabilities</h4>
-                                    <ul className="text-sm text-purple-700 space-y-1">
-                                        <li>• Manage mentors and mentees</li>
-                                        <li>• View system reports</li>
-                                        <li>• Access admin dashboard</li>
-                                        <li>• Handle user assignments</li>
-                                    </ul>
-                                </div>
-                                <div className="bg-blue-50 p-4 rounded-lg">
-                                    <h4 className="font-semibold text-blue-800 mb-2">Mentor Capabilities</h4>
-                                    <ul className="text-sm text-blue-700 space-y-1">
-                                        <li>• Mentor assigned students</li>
-                                        <li>• Access mentor dashboard</li>
-                                        <li>• Manage mentee profiles</li>
-                                        <li>• Submit mentor reports</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
+
             </div>
         </DashboardLayout>
     )

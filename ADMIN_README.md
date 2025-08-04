@@ -1,206 +1,211 @@
-# Admin Account Guide
+# Admin Role Documentation
 
 ## Overview
-Admin accounts in this mentorship system have comprehensive management capabilities to oversee mentors, mentees, and system operations. This guide covers all admin functionalities and responsibilities.
+The Admin role in the MentorHub system provides comprehensive user management and system oversight capabilities. Admins can manage mentors, mentees, classes, and have access to dual-role functionality (admin+mentor).
 
-## Admin Role Types
+## 🔐 Authentication & Access
+- **Role**: Admin
+- **Access Level**: System-wide user management
+- **Dual Role Support**: Can switch between admin and mentor accounts
+- **Dashboard**: `/admin/dashboard`
 
-### 1. Regular Admin (`admin`)
-- Standard administrative privileges
-- Can manage users, mentors, and mentees
-- Access to reports and analytics
+## 📊 Dashboard Features
 
-### 2. Admin+Mentor (`admin+mentor`)
-- Combined admin and mentor privileges (assigned by Super Admin only)
-- Can perform both administrative tasks and mentoring
-- Has dual access to admin and mentor dashboards
-- **Note:** Only Super Admins can create or modify admin+mentor roles
+### Main Dashboard (`/admin/dashboard`)
+- **System Statistics**: View total mentors and mentees in the system
+- **Mentor Account Management**: Save and switch to mentor account credentials
+- **Quick Actions**: Access to user management and system overview
+- **Real-time Updates**: Live statistics and activity monitoring
 
-## Admin Dashboard Features
+### Key Statistics Displayed
+- Total number of mentors in the system
+- Total number of mentees in the system
+- System activity overview
+- Recent activity tracking
 
-### 📊 Dashboard Overview (`/admin/dashboard`)
-**Main Statistics:**
-- Total Mentors count
-- Total Mentees count
-- Quick access to key functions
+## 👥 User Management (`/admin/users`)
 
-**Mentor Credentials Management:**
-- Save mentor login credentials for quick access
-- Edit and update saved credentials
-- One-click login as mentor (for testing/support)
+### Mentor Management
+- **Create Individual Mentors**: Add single mentor accounts with custom details
+- **Bulk Mentor Creation**: Create multiple mentor accounts simultaneously
+- **Mentor ID Generation**: Automatic sequential mentor ID generation (e.g., MH2025001)
+- **Email Validation**: Real-time email duplicate checking
+- **Password Management**: Auto-generated secure passwords with visibility toggle
+- **Account Details**: Name, email, password, and role assignment
 
-### 👥 User Management (`/admin/users`)
-**Comprehensive User Control:**
+### Mentee Management
+- **Create Mentees**: Add individual mentee accounts
+- **Class Assignment**: Assign mentees to specific classes
+- **Mentor Assignment**: Assign mentees to mentors
+- **Profile Management**: Enrollment numbers, contact details, academic information
+- **Bulk Operations**: Manage multiple mentees efficiently
 
-#### Mentor Management
-- **Create Single Mentor:**
-  - Generate unique Mentor ID (format: MH2025001)
-  - Set up authentication account
-  - Configure profile information
-  - **Restricted:** Can only create regular mentor accounts (admin+mentor creation moved to Super Admin)
+### Advanced Features
+- **Login as User**: Test user accounts by logging in as created users
+- **Account Switching**: Seamless switching between admin and mentor roles
+- **User Search**: Filter and search through all users
+- **Export Capabilities**: Export user data in various formats
+- **Real-time Updates**: Live user data synchronization
 
-- **Bulk Mentor Creation:**
-  - Create multiple mentors simultaneously
-  - Auto-generate sequential Mentor IDs
-  - Real-time email validation
-  - Progress tracking during creation
-  - Automatic password generation
+## 🏫 Class Management (`/admin/manage-mentors`)
 
-- **Mentor Features:**
-  - View mentor profiles with images
-  - Assign/remove admin access
-  - Delete mentor accounts
-  - Track mentor statistics
+### Class Operations
+- **Create Classes**: Set up new academic classes with details
+- **Class Details**: Name, year, section, description
+- **Mentor Assignment**: Assign mentors to specific classes
+- **Student Enrollment**: Manage student enrollment in classes
+- **Class Analytics**: View class statistics and performance
 
-#### Mentee Management
-- **View All Mentees:**
-  - Expandable cards with full details
-  - Profile images and information
-  - Enrollment numbers and class details
+## 📈 Reports & Analytics (`/admin/reports`)
 
-- **Mentor Assignment:**
-  - Assign mentees to mentors
-  - Bulk assignment capabilities
-  - Track assigned vs unassigned mentees
-  - Save/cancel assignment changes
+### Report Management
+- **System Reports**: View comprehensive system analytics
+- **User Activity**: Track user engagement and activity
+- **Performance Metrics**: Monitor system performance
+- **Export Reports**: Generate and export detailed reports
 
-- **Mentee Organization:**
-  - Filter by assigned/unassigned status
-  - Search functionality
-  - Class-based organization
+## 🔄 Dual Role Functionality
 
-#### Admin Management
-- **Access Restricted:**
-  - Admin account viewing moved to Super Admin only
-  - Admin creation restricted to Super Admin accounts
-  - Enhanced security and role separation
+### Admin + Mentor Role
+- **Secure Account Linking**: Super Admin links admin and mentor accounts securely
+- **Custom Token Authentication**: Uses Firebase custom tokens for secure switching
+- **No Password Storage**: Eliminates security risks of storing passwords
+- **One-Click Switching**: Seamless role switching with single click
 
-### 🎯 Mentor Access Control (`/admin/manage-mentors`)
-**Access Restricted:**
-- This feature is now limited to Super Admin accounts only
-- Admin accounts can no longer assign admin privileges to mentors
-- Contact Super Admin for any mentor role changes needed
+### Account Switching Features
+- **Linked Account Detection**: Automatically detects linked mentor accounts
+- **Secure Token Generation**: Backend generates secure custom tokens
+- **Session Management**: Maintains separate sessions for each role
+- **Super Admin Control**: Only Super Admin can create account links
 
-### 📋 Reports Management (`/admin/reports`)
-**System-wide Report Access:**
-- View all submitted reports from mentees
-- Download report files
-- Track report status (pending/reviewed)
-- User identification (mentee and mentor info)
-- Timestamp tracking
-- Comprehensive report analytics
+### Security Benefits
+- **No Password Storage**: Passwords are never stored in the system
+- **Custom Token Authentication**: Uses Firebase's secure custom token system
+- **Role-based Access**: Strict role-based access control
+- **Audit Trail**: Complete audit trail of account switches
 
-## Technical Implementation
+## 🛠️ Technical Features
 
-### Database Collections
-Admins interact with multiple Firestore collections:
-- `admins` - Admin user data
-- `mentors` - Mentor profiles and credentials
-- `mentees` - Student information and assignments
-- `reports` - Submitted reports and feedback
-- `classes` - Class organization data
+### Security & Authentication
+- **Firebase Authentication**: Secure user authentication
+- **Role-based Access Control**: Strict role-based permissions
+- **Session Management**: Secure session handling
+- **Password Security**: Encrypted password storage
 
-### Authentication Flow
-1. **Admin Login:** Standard Firebase Authentication
-2. **Role Verification:** Firestore role-based access control
-3. **Session Management:** Secure admin session handling
-4. **Mentor Impersonation:** Temporary login as mentor for support
+### Data Management
+- **Firebase Firestore**: Real-time database operations
+- **Real-time Updates**: Live data synchronization
+- **Bulk Operations**: Efficient batch processing
+- **Data Validation**: Comprehensive input validation
 
-### Security Features
-- **Role-based Access Control:** Strict permission checking
-- **Secure User Creation:** Proper Firebase Auth integration
-- **Data Validation:** Email uniqueness and format validation
-- **Audit Trail:** Creation tracking and timestamps
+### User Interface
+- **Responsive Design**: Mobile-first responsive interface
+- **Modern UI**: Clean, professional design with Tailwind CSS
+- **Interactive Components**: Rich UI components with animations
+- **Accessibility**: WCAG compliant interface
 
-## Admin Responsibilities
+## 📱 Mobile Responsiveness
+- **Mobile Dashboard**: Optimized for mobile devices
+- **Touch-friendly Interface**: Touch-optimized controls
+- **Responsive Tables**: Mobile-friendly data tables
+- **Adaptive Layout**: Flexible layout for all screen sizes
 
-### Daily Operations
-- Monitor new user registrations
-- Assign mentees to appropriate mentors
-- Review and manage reports
-- Handle user access issues
+## 🔧 System Integration
 
-### User Management
-- Create mentor accounts as needed
-- Manage mentor-mentee assignments
-- **Restricted:** Role changes now handled by Super Admin
-- Process basic access requests (escalate admin requests to Super Admin)
+### Firebase Integration
+- **Authentication**: Firebase Auth for user management
+- **Firestore Database**: Real-time data storage
+- **Storage**: File upload and management
+- **Security Rules**: Comprehensive security configuration
 
-### System Maintenance
-- Monitor system statistics
-- Ensure proper mentor-mentee ratios
-- Maintain data integrity
-- Handle technical support requests
+### External Integrations
+- **Email Services**: Email verification and notifications
+- **File Storage**: Document and file management
+- **Export Services**: Data export capabilities
+- **Analytics**: System analytics and reporting
 
-## API Endpoints
+## 📋 Key Workflows
 
-### Admin Creation APIs
-- `POST /api/create-admin` - Create single admin account
-- `POST /api/create-bulk-admins` - Create multiple admin accounts
+### Creating a New Mentor
+1. Navigate to `/admin/users`
+2. Click "Create Mentor" or "Bulk Create Mentors"
+3. Fill in mentor details (name, email, password)
+4. System generates unique mentor ID
+5. Email validation checks for duplicates
+6. Account creation with secure password
+7. Option to login as the new mentor
 
-### Utility APIs
-- `POST /api/check-email` - Validate email uniqueness
-- `POST /api/cleanup-orphaned-users` - System maintenance
+### Managing Mentees
+1. Access mentee management section
+2. Create new mentee accounts
+3. Assign to classes and mentors
+4. Manage enrollment details
+5. Track academic progress
+6. Export mentee data as needed
 
-## Navigation Structure
+### Switching to Mentor Role
+1. Save mentor credentials in dashboard
+2. Click "Login as Mentor" button
+3. System switches to mentor dashboard
+4. Access mentor-specific features
+5. Switch back to admin role when needed
 
-### Admin Sidebar Menu
-When on admin pages, the sidebar shows:
-- 📊 **Dashboard** - Main admin overview
-- 👥 **Manage Users** - Mentor and mentee management (admin viewing restricted)
-- ⚙️ **Manage Mentors** - Access restricted message (feature moved to Super Admin)
-- 📋 **Reports** - System reports view
+## 🚀 Performance Features
 
-### Role-based Navigation
-- Admin users see admin-specific navigation
-- Admin+mentor users can switch between admin and mentor views
-- Context-aware menu based on current page
+### Optimization
+- **Lazy Loading**: Efficient data loading
+- **Caching**: Smart data caching
+- **Pagination**: Large dataset handling
+- **Search Optimization**: Fast search capabilities
 
-## Best Practices
+### Monitoring
+- **Real-time Statistics**: Live system monitoring
+- **User Activity Tracking**: Comprehensive activity logs
+- **Performance Metrics**: System performance monitoring
+- **Error Handling**: Robust error management
 
-### User Creation
-1. Always verify email uniqueness before creation
-2. Use bulk creation for multiple mentors
-3. Generate strong passwords automatically
-4. Assign appropriate roles based on requirements
+## 🔒 Security Considerations
 
-### Mentor-Mentee Management
-1. Maintain balanced mentor-mentee ratios
-2. Consider class/year when making assignments
-3. Regularly review unassigned mentees
-4. Monitor mentor workload
+### Data Protection
+- **Encrypted Storage**: Secure data encryption
+- **Access Control**: Role-based permissions
+- **Session Security**: Secure session management
+- **Input Validation**: Comprehensive input sanitization
 
-### Security
-1. Regularly audit admin access
-2. Use mentor impersonation only for support
-3. Keep admin credentials secure
-4. Monitor system access logs
+### Privacy
+- **User Privacy**: Respect for user privacy
+- **Data Minimization**: Minimal data collection
+- **Secure Transmission**: Encrypted data transmission
+- **Audit Trails**: Comprehensive audit logging
 
-## Troubleshooting
+## 📞 Support & Troubleshooting
 
 ### Common Issues
-- **Email Already Exists:** Check all collections for duplicate emails
-- **Creation Failures:** Verify Firebase Admin SDK configuration
-- **Access Denied:** Confirm user role and permissions
-- **Assignment Issues:** Check mentor availability and capacity
+- **Login Problems**: Check credentials and network connection
+- **Data Sync Issues**: Refresh page or check Firebase connection
+- **Role Switching**: Ensure proper credentials are saved
+- **Bulk Operations**: Verify email addresses and data format
 
-### Support Actions
-- Use mentor login feature for user support
-- Check user data across all collections
-- Verify role assignments and permissions
-- Monitor creation process logs
+### Best Practices
+- **Regular Backups**: Maintain system backups
+- **User Training**: Provide user training sessions
+- **Security Updates**: Keep system updated
+- **Monitoring**: Regular system monitoring
 
-## System Integration
+## 🔄 Updates & Maintenance
 
-### Firebase Services
-- **Authentication:** User account management
-- **Firestore:** Data storage and retrieval
-- **Admin SDK:** Server-side operations
+### System Updates
+- **Feature Updates**: Regular feature additions
+- **Security Patches**: Timely security updates
+- **Performance Improvements**: Ongoing optimization
+- **Bug Fixes**: Prompt bug resolution
 
-### Frontend Components
-- **Dashboard Layout:** Consistent admin interface
-- **User Cards:** Expandable user information
-- **Form Validation:** Real-time input checking
-- **Progress Tracking:** Creation process monitoring
+### Maintenance Tasks
+- **Database Cleanup**: Regular data cleanup
+- **User Management**: Periodic user account review
+- **System Monitoring**: Continuous system monitoring
+- **Backup Management**: Regular backup procedures
 
-This admin system provides comprehensive control over the mentorship platform while maintaining security and user experience standards.
+---
+
+**Note**: This documentation covers the Admin role functionality. For additional features or specific workflows, refer to the main project documentation or contact the development team.

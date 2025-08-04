@@ -7,6 +7,7 @@ import {
   type User,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
+  signInWithCustomToken,
   signOut,
   onAuthStateChanged,
 } from "firebase/auth"
@@ -24,13 +25,16 @@ interface UserData {
   middleName?: string
   isActive: boolean
   role: UserRole
-  canBeMentor?: boolean // Admin can also be mentor
-  currentRole?: UserRole // Currently active role for switching
+
   assignedMentorId?: string
   profileImage?: string
   photoURL?: string
   // Keep name for backward compatibility
   name?: string
+  // New linked account system
+  linkedAccountUID?: string // UID of linked account
+  linkedAccountType?: 'admin' | 'mentor' // Type of linked account
+  hasLinkedAccount?: boolean // Quick check for linked account
 }
 
 interface AuthContextType {
@@ -39,9 +43,10 @@ interface AuthContextType {
   loading: boolean
   signUp: (email: string, password: string, firstName: string, lastName: string, role: UserRole, mentorId?: string, middleName?: string) => Promise<void>
   signIn: (email: string, password: string) => Promise<void>
+  signInWithCustomToken: (customToken: string) => Promise<void>
   logout: () => Promise<void>
-  switchRole: (newRole: UserRole) => void
-  getAvailableRoles: () => UserRole[]
+  switchToLinkedAccount: () => Promise<void> // Super admin controlled account switching
+  checkLinkedAccount: () => Promise<void> // Check if account has linked account
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -91,6 +96,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (userData) {
             setUserData(userData)
+            // Check for linked accounts after setting user data
+            setTimeout(() => checkLinkedAccount(), 1000)
           }
         } catch (error: any) {
           // Handle permission errors gracefully during admin creation process
@@ -167,6 +174,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const signInWithCustomTokenFunc = async (customToken: string) => {
+    try {
+      await signInWithCustomToken(auth, customToken)
+    } catch (error) {
+      console.error("Error signing in with custom token:", error)
+      throw error
+    }
+  }
+
   const logout = async () => {
     try {
       await signOut(auth)
@@ -176,39 +192,114 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  const switchRole = (newRole: UserRole) => {
-    if (userData && getAvailableRoles().includes(newRole)) {
-      setUserData({
-        ...userData,
-        currentRole: newRole
-      })
+  const checkLinkedAccount = async () => {
+    if (!user) return
+
+    try {
+      const linkDoc = await getDoc(doc(db, "linkedAccounts", user.uid))
+      
+      if (linkDoc.exists()) {
+        const linkData = linkDoc.data()
+        
+        // Update userData with linked account info
+        if (userData) {
+          setUserData({
+            ...userData,
+            hasLinkedAccount: true,
+            linkedAccountUID: userData.role === 'admin' ? linkData.mentorUID : linkData.adminUID,
+            linkedAccountType: userData.role === 'admin' ? 'mentor' : 'admin'
+          })
+        }
+      } else {
+        // Check reverse link for mentors
+        const mentorLinkDoc = await getDoc(doc(db, "linkedAccounts", `mentor_${user.uid}`))
+        
+        if (mentorLinkDoc.exists()) {
+          const linkData = mentorLinkDoc.data()
+          
+          if (userData) {
+            setUserData({
+              ...userData,
+              hasLinkedAccount: true,
+              linkedAccountUID: linkData.adminUID,
+              linkedAccountType: 'admin'
+            })
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error checking linked account:", error)
     }
   }
 
-  const getAvailableRoles = (): UserRole[] => {
-    if (!userData) return []
-    
-    const roles: UserRole[] = [userData.role]
-    
-    // If admin can be mentor, add mentor role
-    if (userData.role === "admin" && userData.canBeMentor) {
-      roles.push("mentor")
+  const switchToLinkedAccount = async () => {
+    if (!user || !userData?.hasLinkedAccount) {
+      throw new Error("No linked account available")
     }
-    
-    return roles
+
+    try {
+      const userToken = await user.getIdToken()
+      const targetAccountType = userData.linkedAccountType
+      
+      const response = await fetch('/api/switch-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentUserToken: userToken,
+          targetAccountType
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to switch account')
+      }
+
+      // Sign in with custom token
+      await signInWithCustomToken(auth, result.customToken)
+      
+      console.log(`✅ Successfully switched to ${targetAccountType} account`)
+      
+    } catch (error) {
+      console.error("Error switching to linked account:", error)
+      throw error
+    }
   }
 
   // Prevent hydration mismatch by not rendering until mounted
   if (!mounted) {
     return (
-      <AuthContext.Provider value={{ user: null, userData: null, loading: true, signUp, signIn, logout, switchRole, getAvailableRoles }}>
+      <AuthContext.Provider value={{ 
+        user: null, 
+        userData: null, 
+        loading: true, 
+        signUp, 
+        signIn, 
+        signInWithCustomToken: signInWithCustomTokenFunc,
+        logout, 
+        switchToLinkedAccount,
+        checkLinkedAccount
+      }}>
         {children}
       </AuthContext.Provider>
     )
   }
 
   return (
-    <AuthContext.Provider value={{ user, userData, loading, signUp, signIn, logout, switchRole, getAvailableRoles }}>{children}</AuthContext.Provider>
+    <AuthContext.Provider value={{ 
+      user, 
+      userData, 
+      loading, 
+      signUp, 
+      signIn, 
+      signInWithCustomToken: signInWithCustomTokenFunc,
+      logout, 
+      switchToLinkedAccount,
+      checkLinkedAccount
+    }}>{children}</AuthContext.Provider>
   )
 }
 

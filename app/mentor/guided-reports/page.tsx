@@ -139,7 +139,7 @@ export default function GuidedReports() {
       }
     }
 
-    if (userData && (userData.role === "mentor" || (userData.role === "admin" && userData.canBeMentor && userData.currentRole === "mentor"))) {
+          if (userData && userData.role === "mentor") {
       fetchData()
     }
   }, [userData])

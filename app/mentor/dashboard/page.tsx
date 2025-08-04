@@ -5,11 +5,11 @@ import { collection, doc, getDoc, getDocs, setDoc, query, where } from "firebase
 import { db, auth } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
-import { signInWithEmailAndPassword, signOut } from "firebase/auth"
+import { signInWithEmailAndPassword, signOut, signInWithCustomToken } from "firebase/auth"
 import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card"
-import { FileText, MessageSquare, Users, ArrowRight, BookOpen, Shield, Sparkles, Edit, GraduationCap, UserPlus, Eye, EyeOff } from "lucide-react"
+import { FileText, MessageSquare, Users, ArrowRight, BookOpen, Shield, Sparkles, Edit, GraduationCap, UserPlus, Eye, EyeOff, Check } from "lucide-react"
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { formatDate } from "@/lib/utils"
@@ -64,16 +64,11 @@ export default function MentorDashboard() {
   const router = useRouter()
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [hasAdminAccess, setHasAdminAccess] = useState(false)
-  const [adminAccount, setAdminAccount] = useState<{
-    uid: string;
-    email: string;
-    name: string;
-    password: string;
+  const [linkedAdminAccount, setLinkedAdminAccount] = useState<{
+    adminUID: string;
+    adminName: string;
+    adminEmail: string;
   } | null>(null)
-  const [isEditing, setIsEditing] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
-  const [hasSavedCredentials, setHasSavedCredentials] = useState(false)
   const [mentees, setMentees] = useState<Mentee[]>([])
   const [classes, setClasses] = useState<ClassInfo[]>([])
   const [pendingReports, setPendingReports] = useState<Report[]>([])
@@ -81,44 +76,6 @@ export default function MentorDashboard() {
   const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([])
   const [loading, setLoading] = useState(true)
   const [menteesWithNames, setMenteesWithNames] = useState<{ [key: string]: string }>({})
-
-  // Save admin credentials to Firestore
-  const saveAdminCredentials = async (credentials: { email: string; password: string }) => {
-    if (!userData?.uid) return
-
-    try {
-      setIsSaving(true)
-      const mentorRef = doc(db, "mentors", userData.uid)
-      const mentorDoc = await getDoc(mentorRef)
-      
-      if (mentorDoc.exists()) {
-        const currentData = mentorDoc.data()
-        await setDoc(mentorRef, {
-          ...currentData,
-          adminCredentials: credentials
-        }, { merge: true })
-      }
-
-      toast({
-        title: "Credentials saved",
-        description: "Your admin account credentials have been saved successfully.",
-      })
-      setHasSavedCredentials(true)
-      setIsEditing(false)
-
-      // Reload credentials to update the display
-      await loadAdminCredentials()
-    } catch (error) {
-      console.error("Error saving admin credentials:", error)
-      toast({
-        title: "Error",
-        description: "Failed to save credentials. Please try again.",
-        variant: "destructive"
-      })
-    } finally {
-      setIsSaving(false)
-    }
-  }
 
   // Load mentee names for display
   const loadMenteeNames = async (menteeIds: string[]) => {
@@ -135,44 +92,37 @@ export default function MentorDashboard() {
     setMenteesWithNames(names)
   }
 
-  // Load admin credentials from Firestore
-  const loadAdminCredentials = async () => {
-    if (!userData?.uid) return
-
-    try {
-      const mentorRef = doc(db, "mentors", userData.uid)
-      const mentorDoc = await getDoc(mentorRef)
-
-      if (mentorDoc.exists()) {
-        const mentorData = mentorDoc.data()
-        if (mentorData.adminCredentials) {
-          setAdminAccount({
-            uid: userData.uid,
-            email: mentorData.adminCredentials.email,
-            password: mentorData.adminCredentials.password,
-            name: userData.name || ''
-          })
-          setHasSavedCredentials(true)
-        }
-      }
-    } catch (error) {
-      console.error("Error loading admin credentials:", error)
-    }
-  }
-
   // Effect to check admin access
   useEffect(() => {
     const checkAdminAccess = async () => {
-      await loadAdminCredentials()
       if (!userData?.uid) return
 
       try {
-        const mentorRef = doc(db, "mentors", userData.uid)
-        const mentorDoc = await getDoc(mentorRef)
-
-        if (mentorDoc.exists()) {
-          const mentorData = mentorDoc.data()
-          setHasAdminAccess(mentorData.hasAdminAccess || false)
+        console.log('Checking admin access for mentor:', userData.uid)
+        
+        // Check for linked admin account
+        const linkedAccountsRef = collection(db, "linkedAccounts")
+        const linkedAccountQuery = query(
+          linkedAccountsRef,
+          where("mentorUID", "==", userData.uid),
+          where("targetRole", "==", "admin")
+        )
+        const linkedAccountSnapshot = await getDocs(linkedAccountQuery)
+        
+        console.log('Found linked accounts for mentor:', linkedAccountSnapshot.docs.length)
+        
+        if (!linkedAccountSnapshot.empty) {
+          const linkedAccount = linkedAccountSnapshot.docs[0].data()
+          console.log('Linked admin account found:', linkedAccount)
+          setLinkedAdminAccount({
+            adminUID: linkedAccount.adminUID,
+            adminName: linkedAccount.adminName,
+            adminEmail: linkedAccount.adminEmail
+          })
+          setHasAdminAccess(true)
+        } else {
+          console.log('No linked admin account found for mentor')
+          setHasAdminAccess(false)
         }
       } catch (error) {
         console.error('Error checking admin access:', error)
@@ -182,43 +132,7 @@ export default function MentorDashboard() {
     checkAdminAccess()
   }, [userData?.uid])
 
-  // Effect to load admin account info
-  useEffect(() => {
-    const loadAdminAccount = async () => {
-      if (!userData?.uid || !hasAdminAccess) return
 
-      try {
-        const mentorRef = doc(db, "mentors", userData.uid)
-        const mentorDoc = await getDoc(mentorRef)
-
-        if (mentorDoc.exists()) {
-          const mentorData = mentorDoc.data()
-          if (mentorData.adminAccountId) {
-            // Get the admin account details
-            const adminRef = doc(db, "admins", mentorData.adminAccountId)
-            const adminDoc = await getDoc(adminRef)
-
-            if (adminDoc.exists()) {
-              const adminData = adminDoc.data()
-              // Get admin credentials from mentor data
-              const adminCredentials = mentorData.adminCredentials || {}
-              setAdminAccount({
-                uid: adminData.uid,
-                email: adminData.email,
-                name: adminData.name,
-                password: mentorData.adminCredentials?.password || ''
-              })
-              setHasSavedCredentials(true)
-            }
-          }
-        }
-      } catch (error) {
-        console.error('Error loading admin account:', error)
-      }
-    }
-
-    loadAdminAccount()
-  }, [userData?.uid, hasAdminAccess])
 
   // Effect to load mentor data from Firestore
   useEffect(() => {
@@ -345,71 +259,44 @@ export default function MentorDashboard() {
 
 
 
-  if (!userData || (userData.role !== "mentor" && userData.role !== "admin+mentor")) {
+  if (!userData || userData.role !== "mentor") {
     return null
   }
 
 
 
-  const loginAsAdmin = async (credentials: { email: string; password: string }) => {
-    if (!credentials?.email || !credentials?.password) {
-      toast({
-        title: "Missing credentials",
-        description: "Please provide both email and password to login.",
-        variant: "destructive"
-      })
-      return
-    }
 
-    try {
-      setIsLoggingIn(true)
-
-      // Sign out current user (mentor)
-      await signOut(auth)
-
-      // Sign in as admin
-      await signInWithEmailAndPassword(auth, credentials.email, credentials.password)
-
-      toast({
-        title: "Login successful",
-        description: "You are now logged in as an admin.",
-      })
-
-      // Redirect to admin dashboard
-      router.push("/admin/dashboard")
-    } catch (error) {
-      console.error("Error logging in as admin:", error)
-      toast({
-        title: "Login failed",
-        description: "Invalid credentials or account does not exist.",
-        variant: "destructive"
-      })
-
-      // Try to sign back in as mentor if admin login fails
-      try {
-        window.location.reload()
-      } catch (e) {
-        console.error("Failed to restore mentor session:", e)
-      }
-    } finally {
-      setIsLoggingIn(false)
-    }
-  }
 
   const handleSwitchToAdmin = async () => {
-    if (!adminAccount) return;
-
     try {
       setIsLoggingIn(true);
+
+      // Call the secure switch API
+      const response = await fetch('/api/switch-account', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          currentUserId: userData?.uid,
+          targetRole: 'admin'
+        })
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to switch account')
+      }
 
       // Sign out from mentor account
       await signOut(auth);
 
-      // Sign in with admin account
-      await signInWithEmailAndPassword(auth, adminAccount.email, adminAccount.password);
+      // Sign in with custom token
+      await signInWithCustomToken(auth, data.customToken);
 
       toast({
-        title: "Switched to admin account",
+        title: "Switch successful",
         description: "You are now logged in as an admin."
       });
 
@@ -418,12 +305,12 @@ export default function MentorDashboard() {
     } catch (error) {
       console.error("Error switching to admin account:", error);
       toast({
-        title: "Error",
-        description: "Failed to switch to admin account. Please try again.",
+        title: "Switch failed",
+        description: error instanceof Error ? error.message : "Failed to switch account. Please contact Super Admin.",
         variant: "destructive"
       });
 
-      // Try to sign back in as mentor if admin login fails
+      // Try to sign back in as mentor if switch fails
       try {
         window.location.reload();
       } catch (e) {
@@ -443,8 +330,8 @@ export default function MentorDashboard() {
             <p className="text-muted-foreground text-sm sm:text-base">Here's an overview of your mentoring activities</p>
           </div>
 
-          {/* Admin Account Switch Button for admin+mentor role */}
-          {userData?.role === "admin+mentor" && adminAccount && (
+          {/* Admin Account Switch Button for linked accounts */}
+          {hasAdminAccess && linkedAdminAccount && (
             <Button
               variant="outline"
               className="flex items-center gap-2 bg-amber-50 border-amber-200 hover:bg-amber-100"
@@ -556,97 +443,36 @@ export default function MentorDashboard() {
               <div className="mb-8">
                 <Card className="border-0 shadow-lg rounded-xl overflow-hidden">
                   <CardHeader className="bg-gradient-to-r from-purple-500/20 to-purple-500/5">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Shield className="h-5 w-5 text-purple-600" />
-                        <CardTitle>Admin Credentials</CardTitle>
-                      </div>
-                      {!isEditing && adminAccount && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => setIsEditing(true)}
-                          className="text-purple-600 hover:text-purple-700 hover:bg-purple-50"
-                        >
-                          <Edit className="h-4 w-4 mr-2" />
-                          Edit Credentials
-                        </Button>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <Shield className="h-5 w-5 text-purple-600" />
+                      <CardTitle>Linked Admin Account</CardTitle>
                     </div>
                     <CardDescription>
-                      {adminAccount
-                        ? "Use these credentials to access your admin account"
-                        : "Set up your admin account credentials"}
+                      {linkedAdminAccount
+                        ? "Your linked admin account for quick role switching"
+                        : "No linked admin account found. Contact Super Admin to link accounts."}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="p-6">
-                    {isEditing ? (
+                    {linkedAdminAccount ? (
                       <div className="space-y-4">
-                        <div className="grid gap-4">
+                        <div className="bg-purple-50 p-4 rounded-lg border border-purple-200">
+                          <h3 className="font-medium text-purple-800 mb-2 flex items-center gap-2">
+                            <Shield className="h-4 w-4" />
+                            Linked Admin Account
+                          </h3>
                           <div className="space-y-2">
-                            <Label>Admin Email</Label>
-                            <Input
-                              type="email"
-                              value={adminAccount?.email || ''}
-                              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdminAccount(prev => ({ ...prev!, email: e.target.value }))}
-                              placeholder="Enter admin email"
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label>Admin Password</Label>
-                            <div className="relative">
-                              <Input
-                                type={showPassword ? "text" : "password"}
-                                value={adminAccount?.password || ''}
-                                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdminAccount(prev => ({ ...prev!, password: e.target.value }))}
-                                placeholder="Enter admin password"
-                                className="pr-10"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowPassword(!showPassword)}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                              >
-                                {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-3 justify-end">
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setIsEditing(false)
-                              // Reset to original values if canceling
-                              setAdminAccount(adminAccount)
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              if (adminAccount) {
-                                saveAdminCredentials({
-                                  email: adminAccount.email,
-                                  password: adminAccount.password
-                                })
-                              }
-                              setIsEditing(false)
-                            }}
-                            className="bg-purple-600 hover:bg-purple-700"
-                            disabled={isSaving}
-                          >
-                            {isSaving ? "Saving..." : "Save Credentials"}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : adminAccount ? (
-                      <div className="space-y-4">
-                        <div className="grid gap-4">
-                          <div className="flex items-center justify-between p-4 bg-purple-50 rounded-lg">
                             <div>
-                              <p className="text-sm text-purple-600 font-medium">Admin Email</p>
-                              <p className="text-gray-700">{adminAccount.email}</p>
+                              <span className="text-sm font-medium text-gray-500">Name:</span>
+                              <span className="text-sm ml-2">{linkedAdminAccount.adminName}</span>
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium text-gray-500">Email:</span>
+                              <span className="text-sm ml-2">{linkedAdminAccount.adminEmail}</span>
+                            </div>
+                            <div>
+                              <span className="text-sm font-medium text-gray-500">Status:</span>
+                              <span className="text-sm ml-2 text-green-600">Linked ✓</span>
                             </div>
                           </div>
                         </div>
@@ -656,36 +482,41 @@ export default function MentorDashboard() {
                           disabled={isLoggingIn}
                         >
                           {isLoggingIn ? (
-                            "Switching..."
+                            <>
+                              <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
+                              Switching...
+                            </>
                           ) : (
                             <>
-                              Switch to Admin Account
+                              Switch to Admin Role
                               <ArrowRight className="h-4 w-4 ml-2" />
                             </>
                           )}
                         </Button>
                       </div>
                     ) : (
-                      <div className="text-center py-4">
-                        <p className="text-muted-foreground">No admin credentials set</p>
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            setAdminAccount({
-                              uid: '',
-                              email: '',
-                              name: '',
-                              password: ''
-                            })
-                            setIsEditing(true)
-                          }}
-                          className="mt-2"
-                        >
-                          Set Up Credentials
-                        </Button>
+                      <div className="text-center py-6">
+                        <Shield className="h-12 w-12 text-purple-300 mx-auto mb-3" />
+                        <p className="text-gray-500 mb-2">No linked admin account</p>
+                        <p className="text-sm text-gray-400">
+                          Contact your Super Admin to link your mentor account with an admin account for quick role switching.
+                        </p>
                       </div>
                     )}
                   </CardContent>
+                  <CardFooter className="bg-gray-50 px-6 py-4">
+                    {linkedAdminAccount ? (
+                      <div className="text-xs text-center text-gray-500 w-full">
+                        <Check className="h-3 w-3 inline-block mr-1 text-green-500" />
+                        Secure account linking enabled - no password storage required
+                      </div>
+                    ) : (
+                      <div className="text-xs text-center text-gray-500 w-full">
+                        <Shield className="h-3 w-3 inline-block mr-1 text-blue-500" />
+                        Only Super Admin can link accounts for security
+                      </div>
+                    )}
+                  </CardFooter>
                 </Card>
               </div>
             )}

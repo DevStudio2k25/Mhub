@@ -1,9 +1,3 @@
-Samajh gaya yrr 😅
-Tu bol raha hai ki poora markdown format (.md) me de du jo tu direct README.md file me paste kar sake.
-
-markdown
-Copy
-Edit
 # Admin ↔ Mentor Quick Account Switch System
 
 ## 1. Problem Statement

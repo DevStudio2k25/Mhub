@@ -10,7 +10,7 @@ import {
   BarChart, Settings, BookMarked, UserCog, UserCheck,
   Presentation, HelpCircle, ChevronRight
 } from "lucide-react"
-import RoleSwitcher from "@/components/ui/role-switcher"
+import AccountSwitcher from "@/components/ui/account-switcher"
 import { useState, useEffect } from "react"
 import Image from "next/image"
 
@@ -101,8 +101,8 @@ function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) {
     // Check if we're on a mentor page
     const isMentorPage = pathname.startsWith('/mentor')
 
-    // Get current active role
-    const currentRole = userData.currentRole || userData.role
+    // Get current role
+    const currentRole = userData.role
 
     // If we're on a super-admin page and user is super-admin, show only super-admin links
     if (isSuperAdminPage && userData.role === 'super-admin') {
@@ -133,6 +133,9 @@ function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) {
       return (
         <>
           {renderNavLink("/admin/dashboard", <BarChart size={20} />, "Dashboard")}
+          {renderNavLink("/admin/classes", <School size={20} />, "Class Management")}
+          {renderNavLink("/admin/mentees", <GraduationCap size={20} />, "Mentee Management")}
+          {renderNavLink("/admin/csv-template", <FileText size={20} />, "CSV Templates")}
           {renderNavLink("/admin/users", <Users size={20} />, "Manage Users")}
           {renderNavLink("/admin/manage-mentors", <UserCog size={20} />, "Manage Mentors")}
           {renderNavLink("/admin/profile", <ShieldCheck size={20} />, "My Profile")}
@@ -150,8 +153,8 @@ function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) {
       )
     }
 
-    // If we're on a mentor page and user can be mentor, show mentor links
-    if (isMentorPage && (userData.role === 'mentor' || (userData.role === 'admin' && userData.canBeMentor))) {
+    // If we're on a mentor page and user is mentor, show mentor links
+    if (isMentorPage && userData.role === 'mentor') {
       return (
         <>
           {renderNavLink("/mentor/dashboard", <Home size={20} />, "Dashboard")}
@@ -321,15 +324,15 @@ function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) {
                 <div className="flex items-center gap-1 mt-0.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 animate-pulse"></div>
                   <p className="text-xs text-gray-600 capitalize font-medium truncate">
-                    {userData.currentRole || userData.role}
+                    {userData.role}
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Role Switcher */}
+            {/* Account Switcher (Super Admin Controlled) */}
             <div className="px-2">
-              <RoleSwitcher />
+              <AccountSwitcher />
             </div>
           </div>
         </div>
