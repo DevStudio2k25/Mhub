@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Settings, Plus, Trash2, Eye, EyeOff, Users, X, Check, Download, FileText, FileSpreadsheet, Grid } from "lucide-react"
+import { Settings, Plus, Trash2, Eye, EyeOff, Users, X, Check, Download, FileText, FileSpreadsheet, Grid, Upload, AlertCircle } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
 import { formatDate } from "@/lib/utils"
@@ -28,12 +28,14 @@ interface Admin {
   password?: string // Store password for export purposes
   createdAt: string
   createdBy: string | undefined
+  createdByName?: string // Add creator name
 }
 
 export default function ManageAdmins() {
   const { userData } = useAuth()
   const { toast } = useToast()
   const [admins, setAdmins] = useState<Admin[]>([])
+  const [superAdmins, setSuperAdmins] = useState<Record<string, string>>({}) // UID -> Name mapping
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
@@ -90,18 +92,52 @@ export default function ManageAdmins() {
   const [selectedFields, setSelectedFields] = useState<string[]>(['adminId', 'firstName', 'lastName', 'email', 'createdAt'])
   const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'sheets'>('csv')
 
+  // CSV import states
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<Array<{
+    firstName: string;
+    lastName: string;
+    middleName: string;
+    email: string;
+    password: string;
+    isValid?: boolean;
+    errors?: string[];
+  }>>([])
+  const [showCsvPreview, setShowCsvPreview] = useState(false)
+  const [csvValidationErrors, setCsvValidationErrors] = useState<string[]>([])
+  const [csvImportDialog, setCsvImportDialog] = useState(false)
+
   useEffect(() => {
     const fetchAdmins = async () => {
       if (!userData || userData.role !== "super-admin") return
 
       try {
+        // Fetch super admins first to get name mapping
+        const superAdminsSnapshot = await getDocs(collection(db, "super-admins"))
+        const superAdminMap: Record<string, string> = {}
+
+        superAdminsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          const fullName = data.middleName 
+            ? `${data.firstName} ${data.middleName} ${data.lastName}`
+            : `${data.firstName} ${data.lastName}`
+          superAdminMap[doc.id] = fullName || data.name || data.email || "Unknown"
+        })
+
+        setSuperAdmins(superAdminMap)
+
+        // Fetch admins
         const adminsSnapshot = await getDocs(collection(db, "admins"))
         const adminsArray: Admin[] = []
 
         adminsSnapshot.forEach((doc) => {
+          const adminData = doc.data()
+          const createdByName = adminData.createdBy ? superAdminMap[adminData.createdBy] : undefined
+          
           adminsArray.push({
             uid: doc.id,
-            ...doc.data()
+            ...adminData,
+            createdByName
           } as Admin)
         })
 
@@ -406,6 +442,254 @@ export default function ManageAdmins() {
   const initializeProgress = () => {
     setProgressSteps([])
     setCurrentAdminBeingCreated(null)
+  }
+
+  // CSV handling functions
+  const handleCsvUpload = async (file: File) => {
+    try {
+      const text = await file.text()
+      const lines = text.split('\n').filter(line => line.trim())
+
+      if (lines.length === 0) {
+        throw new Error("CSV file is empty")
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim())
+
+      // Validate headers
+      const requiredHeaders = ['firstName', 'lastName', 'middleName', 'email']
+      const missingHeaders = requiredHeaders.filter(header => !headers.includes(header))
+      if (missingHeaders.length > 0) {
+        throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`)
+      }
+
+      // Parse data
+      const parsedData: typeof csvData = []
+      const errors: string[] = []
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (!line) continue
+
+        const values = line.split(',').map(v => v.trim())
+        const adminData: any = {}
+
+        headers.forEach((header, index) => {
+          adminData[header] = values[index] || ""
+        })
+
+        // Validate and enrich data
+        const rowErrors: string[] = []
+
+        // Check required fields
+        if (!adminData.firstName) rowErrors.push("First name is required")
+        if (!adminData.lastName) rowErrors.push("Last name is required")
+        if (!adminData.email) rowErrors.push("Email is required")
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (adminData.email && !emailRegex.test(adminData.email)) {
+          rowErrors.push("Invalid email format")
+        }
+
+        // Check for duplicate emails in existing admins
+        const existingAdmin = admins.find(a => a.email?.toLowerCase() === adminData.email.toLowerCase())
+        if (existingAdmin) {
+          rowErrors.push("Email already exists in database")
+        }
+
+        // Check for duplicate emails within CSV data
+        const duplicateInCsv = parsedData.find(existing =>
+          existing.email.toLowerCase() === adminData.email.toLowerCase()
+        )
+        if (duplicateInCsv) {
+          rowErrors.push("Duplicate email found in CSV")
+        }
+
+        // Add enriched data
+        const enrichedData = {
+          firstName: adminData.firstName,
+          lastName: adminData.lastName,
+          middleName: adminData.middleName || "",
+          email: adminData.email,
+          password: generateRandomPassword(),
+          isValid: rowErrors.length === 0,
+          errors: rowErrors
+        }
+
+        parsedData.push(enrichedData)
+
+        if (rowErrors.length > 0) {
+          errors.push(`Row ${i + 1}: ${rowErrors.join(', ')}`)
+        }
+      }
+
+      setCsvData(parsedData)
+      setCsvValidationErrors(errors)
+      setShowCsvPreview(true)
+
+      if (errors.length === 0) {
+        toast({
+          title: "CSV parsed successfully",
+          description: `${parsedData.length} admin(s) ready for creation`,
+        })
+      } else {
+        toast({
+          title: "CSV parsed with errors",
+          description: `${errors.length} validation error(s) found`,
+          variant: "destructive"
+        })
+      }
+
+    } catch (error: any) {
+      console.error("Error parsing CSV:", error)
+      setCsvValidationErrors([error.message || "Failed to parse CSV file"])
+      toast({
+        title: "Error",
+        description: error.message || "Failed to parse CSV file",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Handle CSV bulk creation
+  const handleCreateCsvAdmins = async () => {
+    const validAdmins = csvData.filter(admin => admin.isValid)
+
+    if (validAdmins.length === 0) {
+      setError("No valid admins to create")
+      return
+    }
+
+    if (!adminPassword) {
+      setError("Please enter your super admin password to confirm")
+      return
+    }
+
+    setError("")
+    setIsCreating(true)
+    setShowProgressDialog(true)
+    initializeProgress()
+
+    try {
+      // Validate super admin password first
+      const currentSuperAdminEmail = auth.currentUser?.email
+      if (!currentSuperAdminEmail) {
+        throw new Error("Super admin not properly authenticated")
+      }
+
+      setCurrentStep('Validating credentials...', 'in-progress', 'Verifying super admin password...')
+      try {
+        await signInWithEmailAndPassword(auth, currentSuperAdminEmail, adminPassword)
+      } catch (credentialError) {
+        throw new Error("Invalid super admin password. Please check your password and try again.")
+      }
+
+      // Get super admin token for API call
+      const superAdminToken = await auth.currentUser?.getIdToken()
+      if (!superAdminToken) {
+        throw new Error("Failed to get super admin token")
+      }
+
+      // Generate unique IDs for all admins
+      const adminsData = []
+      for (const admin of validAdmins) {
+        const adminId = await generateAdminId(admin.firstName, admin.lastName)
+        adminsData.push({
+          firstName: admin.firstName,
+          lastName: admin.lastName,
+          middleName: admin.middleName,
+          adminId: adminId,
+          email: admin.email,
+          password: admin.password
+        })
+      }
+
+      // Set initial progress
+      setCreationProgress({ current: 0, total: validAdmins.length })
+
+      // Call API to create all admins
+      setCurrentStep('Creating admin accounts...', 'in-progress', `Creating ${validAdmins.length} admin accounts...`)
+
+      const response = await fetch('/api/create-bulk-admins', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          adminsData,
+          superAdminToken
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create admins')
+      }
+
+      setCreationProgress({ current: validAdmins.length, total: validAdmins.length })
+      setCurrentStep('All accounts created successfully!', 'completed', `${result.summary.successful} admin accounts are ready to use`)
+
+      // Update local state with created admins
+      const currentUserName = userData?.firstName && userData?.lastName 
+        ? `${userData.firstName} ${userData.middleName ? userData.middleName + ' ' : ''}${userData.lastName}`
+        : userData?.name || userData?.email || "Unknown"
+
+      const newAdmins = result.results.map((admin: any) => ({
+        uid: admin.uid,
+        firstName: admin.firstName,
+        lastName: admin.lastName,
+        middleName: admin.middleName,
+        adminId: admin.adminId,
+        email: admin.email,
+        createdAt: admin.createdAt,
+        createdBy: admin.createdBy,
+        createdByName: currentUserName
+      }))
+
+      setAdmins(prev => [...newAdmins, ...prev])
+
+      // Close dialogs and reset
+      setCsvImportDialog(false)
+      setCsvFile(null)
+      setCsvData([])
+      setShowCsvPreview(false)
+      setAdminPassword("")
+      setShowProgressDialog(false)
+
+      toast({
+        title: "CSV import successful",
+        description: `${result.summary.successful} admin accounts created successfully!`,
+      })
+
+    } catch (error: any) {
+      console.error("Error creating CSV admins:", error)
+      setError(error.message || "Failed to create admins")
+    } finally {
+      setIsCreating(false)
+      setShowProgressDialog(false)
+    }
+  }
+
+  // Download CSV template
+  const downloadCsvTemplate = () => {
+    const headers = ['firstName', 'lastName', 'middleName', 'email']
+    const sampleData = ['John', 'Doe', 'M', 'john.doe@example.com']
+
+    const csvContent = [headers.join(','), sampleData.join(',')].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'admin_template.csv'
+    a.click()
+    window.URL.revokeObjectURL(url)
+
+    toast({
+      title: "Template downloaded",
+      description: "CSV template downloaded successfully",
+    })
   }
 
   const handleCreateAdmin = async () => {
@@ -718,7 +1002,7 @@ export default function ManageAdmins() {
             exportData['Created At'] = formatDate(admin.createdAt)
             break
           case 'createdBy':
-            exportData['Created By'] = admin.createdBy || 'N/A'
+            exportData['Created By'] = admin.createdByName || 'N/A'
             break
           case 'password':
             exportData['Password'] = admin.password || 'N/A'
@@ -875,6 +1159,14 @@ export default function ManageAdmins() {
                 Export Data
               </Button>
             )}
+            <Dialog open={csvImportDialog} onOpenChange={setCsvImportDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="border-blue-200 text-blue-700 hover:bg-blue-50">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import CSV
+                </Button>
+              </DialogTrigger>
+            </Dialog>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-amber-600 hover:bg-amber-700">
@@ -1173,6 +1465,173 @@ export default function ManageAdmins() {
               </DialogContent>
             </Dialog>
 
+            {/* CSV Import Dialog */}
+            <Dialog open={csvImportDialog} onOpenChange={setCsvImportDialog}>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Upload className="h-5 w-5 text-blue-600" />
+                    Import Admin Accounts from CSV
+                  </DialogTitle>
+                  <DialogDescription>
+                    Upload a CSV file to create multiple admin accounts at once.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <Tabs defaultValue="upload" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="upload">Upload CSV</TabsTrigger>
+                    <TabsTrigger value="template">Download Template</TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="upload" className="space-y-4">
+                    {!showCsvPreview ? (
+                      <div className="space-y-4">
+                        <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                          <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                          <div className="space-y-2">
+                            <p className="text-lg font-medium">Upload CSV File</p>
+                            <p className="text-sm text-gray-500">
+                              Select a CSV file with admin data (firstName, lastName, middleName, email)
+                            </p>
+                            <Input
+                              type="file"
+                              accept=".csv"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (file) {
+                                  setCsvFile(file)
+                                  handleCsvUpload(file)
+                                }
+                              }}
+                              className="max-w-xs mx-auto"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between">
+                          <h3 className="text-lg font-semibold">Preview ({csvData.length} admins)</h3>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setShowCsvPreview(false)
+                              setCsvData([])
+                              setCsvFile(null)
+                              setCsvValidationErrors([])
+                            }}
+                          >
+                            Upload Different File
+                          </Button>
+                        </div>
+
+                        {csvValidationErrors.length > 0 && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div className="flex items-center gap-2 text-red-800 font-medium mb-2">
+                              <AlertCircle className="h-4 w-4" />
+                              Validation Errors ({csvValidationErrors.length})
+                            </div>
+                            <div className="text-red-700 text-sm space-y-1 max-h-32 overflow-y-auto">
+                              {csvValidationErrors.map((error, index) => (
+                                <div key={index}>• {error}</div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="border rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Status</TableHead>
+                                <TableHead>First Name</TableHead>
+                                <TableHead>Middle Name</TableHead>
+                                <TableHead>Last Name</TableHead>
+                                <TableHead>Email</TableHead>
+                                <TableHead>Generated Password</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {csvData.map((admin, index) => (
+                                <TableRow key={index}>
+                                  <TableCell>
+                                    {admin.isValid ? (
+                                      <Check className="h-4 w-4 text-green-600" />
+                                    ) : (
+                                      <X className="h-4 w-4 text-red-600" />
+                                    )}
+                                  </TableCell>
+                                  <TableCell>{admin.firstName}</TableCell>
+                                  <TableCell>{admin.middleName}</TableCell>
+                                  <TableCell>{admin.lastName}</TableCell>
+                                  <TableCell>{admin.email}</TableCell>
+                                  <TableCell className="font-mono text-xs">{admin.password}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+
+                        <div className="grid gap-2">
+                          <Label htmlFor="csvAdminPassword">Super Admin Password *</Label>
+                          <Input
+                            id="csvAdminPassword"
+                            type="password"
+                            value={adminPassword}
+                            onChange={(e) => setAdminPassword(e.target.value)}
+                            placeholder="Enter your super admin password to confirm"
+                          />
+                        </div>
+
+                        {error && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div className="text-red-800 text-sm font-medium mb-1">Creation Errors:</div>
+                            <div className="text-red-700 text-sm whitespace-pre-line">{error}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </TabsContent>
+
+                  <TabsContent value="template" className="space-y-4">
+                    <div className="text-center py-8">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Download CSV Template</h3>
+                      <p className="text-gray-600 mb-4">
+                        Download the template file to see the required format for bulk admin creation.
+                      </p>
+                      <Button onClick={downloadCsvTemplate}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Template
+                      </Button>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => {
+                    setCsvImportDialog(false)
+                    setCsvFile(null)
+                    setCsvData([])
+                    setShowCsvPreview(false)
+                    setCsvValidationErrors([])
+                    setAdminPassword("")
+                    setError("")
+                  }}>
+                    Cancel
+                  </Button>
+                  {showCsvPreview && (
+                    <Button onClick={handleCreateCsvAdmins} disabled={isCreating}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      {isCreating ? "Creating..." : `Create ${csvData.filter(a => a.isValid).length} Admins`}
+                    </Button>
+                  )}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             {/* Progress Dialog for Bulk Creation */}
             <Dialog open={showProgressDialog} onOpenChange={setShowProgressDialog}>
               <DialogContent className="max-w-md">
@@ -1288,7 +1747,7 @@ export default function ManageAdmins() {
                             {formatDate(admin.createdAt)}
                           </TableCell>
                           <TableCell className="border-r px-4 py-3 text-sm whitespace-nowrap">
-                            {admin.createdBy || "N/A"}
+                            {admin.createdByName || "N/A"}
                           </TableCell>
                           <TableCell className="px-4 py-3 whitespace-nowrap">
                             <Button
