@@ -108,12 +108,22 @@ export async function POST(request: NextRequest) {
         // Check if email already exists
         try {
           await adminAuth.getUserByEmail(menteeData.email)
-          throw new Error(`Email ${menteeData.email} already exists`)
+          throw new Error(`Email ${menteeData.email} already exists in Firebase Auth`)
         } catch (error: any) {
           if (error.code !== 'auth/user-not-found') {
             throw error
           }
           // User doesn't exist, which is what we want
+        }
+
+        // Also check in Firestore mentees collection
+        const existingMenteeQuery = await adminDb.collection('mentees')
+          .where('email', '==', menteeData.email)
+          .limit(1)
+          .get()
+        
+        if (!existingMenteeQuery.empty) {
+          throw new Error(`Email ${menteeData.email} already exists in mentees database`)
         }
 
         // Create user in Firebase Auth

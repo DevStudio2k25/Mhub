@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore"
-import { db, auth } from "@/lib/firebase"
+import { db } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createUserWithEmailAndPassword, signOut, signInWithEmailAndPassword } from "firebase/auth"
+
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -88,7 +88,7 @@ export default function AdminMentees() {
   const [classes, setClasses] = useState<ClassInfo[]>([])
   const [mentors, setMentors] = useState<MentorInfo[]>([])
   const [loading, setLoading] = useState(true)
-  
+
   // Single mentee creation
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -113,7 +113,7 @@ export default function AdminMentees() {
     stream: "",
     assignedMentorId: ""
   })
-  
+
   // Bulk creation states
   const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false)
   const [bulkMode, setBulkMode] = useState<'single' | 'multiple'>('single')
@@ -121,7 +121,7 @@ export default function AdminMentees() {
   const [csvData, setCsvData] = useState<CsvMenteeData[]>([])
   const [showPreview, setShowPreview] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
-  
+
   // Creation process states
   const [error, setError] = useState("")
   const [isCreating, setIsCreating] = useState(false)
@@ -136,7 +136,7 @@ export default function AdminMentees() {
     const uppercase = Math.random().toString(36).toUpperCase().slice(-2)
     const numbers = Math.floor(Math.random() * 90 + 10)
     const special = "!@#$%^&*"[Math.floor(Math.random() * 8)]
-    
+
     const combined = lowercase + uppercase + numbers + special
     return combined.split('').sort(() => 0.5 - Math.random()).join('')
   }
@@ -231,17 +231,17 @@ export default function AdminMentees() {
     try {
       const text = await file.text()
       const lines = text.split('\n').filter(line => line.trim())
-      
+
       if (lines.length === 0) {
         throw new Error("CSV file is empty")
       }
 
       const headers = lines[0].split(',').map(h => h.trim())
-      
+
       // Validate headers
       const requiredHeaders = [
-        'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo', 
-        'registrationNo', 'parentsName', 'parentsContact', 'className', 
+        'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo',
+        'registrationNo', 'parentsName', 'parentsContact', 'className',
         'admissionBatch', 'classRollNo', 'dob', 'section', 'stream', 'assignedMentorName'
       ]
 
@@ -260,20 +260,20 @@ export default function AdminMentees() {
 
         const values = line.split(',').map(v => v.trim())
         const menteeData: any = {}
-        
+
         headers.forEach((header, index) => {
           menteeData[header] = values[index] || ""
         })
 
         // Validate and enrich data
         const rowErrors: string[] = []
-        
+
         // Check required fields
         if (!menteeData.firstName) rowErrors.push("First name is required")
         if (!menteeData.lastName) rowErrors.push("Last name is required")
         if (!menteeData.email) rowErrors.push("Email is required")
         if (!menteeData.enrollmentNo) rowErrors.push("Enrollment number is required")
-        
+
         // Validate email format
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
         if (menteeData.email && !emailRegex.test(menteeData.email)) {
@@ -284,6 +284,14 @@ export default function AdminMentees() {
         const existingMentee = mentees.find(m => m.email.toLowerCase() === menteeData.email.toLowerCase())
         if (existingMentee) {
           rowErrors.push("Email already exists in database")
+        }
+
+        // Check for duplicate emails within CSV data
+        const duplicateInCsv = parsedData.find(existing =>
+          existing.email.toLowerCase() === menteeData.email.toLowerCase()
+        )
+        if (duplicateInCsv) {
+          rowErrors.push("Duplicate email found in CSV")
         }
 
         // Find class by name
@@ -348,9 +356,9 @@ export default function AdminMentees() {
   // Handle single mentee creation via API
   const handleCreateSingleMentee = async () => {
     if (!newMentee.firstName || !newMentee.lastName || !newMentee.email || !newMentee.password ||
-        !newMentee.enrollmentNo || !newMentee.registrationNo || !newMentee.parentsName || 
-        !newMentee.parentsContact || !newMentee.classId || !newMentee.admissionBatch || 
-        !newMentee.classRollNo || !newMentee.dob) {
+      !newMentee.enrollmentNo || !newMentee.registrationNo || !newMentee.parentsName ||
+      !newMentee.parentsContact || !newMentee.classId || !newMentee.admissionBatch ||
+      !newMentee.classRollNo || !newMentee.dob) {
       setError("Please fill all required fields")
       return
     }
@@ -482,10 +490,10 @@ export default function AdminMentees() {
     }
   }
 
-  // Handle bulk mentee creation
+  // Handle bulk mentee creation via API
   const handleCreateBulkMentees = async () => {
     const validMentees = csvData.filter(mentee => mentee.isValid)
-    
+
     if (validMentees.length === 0) {
       setError("No valid mentees to create")
       return
@@ -502,79 +510,81 @@ export default function AdminMentees() {
     setCreationProgress({ current: 0, total: validMentees.length })
 
     try {
-      // Store current admin credentials
-      const adminEmail = auth.currentUser?.email
-      const adminUid = auth.currentUser?.uid
+      setCurrentStep("Preparing mentee data...")
 
-      // Validate admin password
-      if (adminEmail) {
-        await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
+      // Prepare mentees data for API
+      const menteesData = validMentees.map(mentee => ({
+        firstName: mentee.firstName,
+        lastName: mentee.lastName,
+        middleName: mentee.middleName || "",
+        email: mentee.email,
+        password: mentee.password!,
+        enrollmentNo: mentee.enrollmentNo,
+        registrationNo: mentee.registrationNo,
+        parentsName: mentee.parentsName,
+        parentsContact: mentee.parentsContact,
+        classId: mentee.classId!,
+        className: mentee.className,
+        admissionBatch: mentee.admissionBatch,
+        classRollNo: mentee.classRollNo,
+        dob: mentee.dob,
+        section: mentee.section,
+        stream: mentee.stream,
+        assignedMentorId: mentee.assignedMentorId || "",
+        assignedMentorName: mentee.assignedMentorName || ""
+      }))
+
+      setCurrentStep("Creating mentee accounts...")
+
+      // Call API to create mentees
+      const response = await fetch('/api/create-mentees', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mentees: menteesData,
+          adminUid: userData?.uid,
+          adminPassword: adminPassword
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create mentees')
       }
 
-      const createdMentees: any[] = []
+      setCurrentStep("Processing results...")
 
-      for (let i = 0; i < validMentees.length; i++) {
-        const menteeData = validMentees[i]
-        setCurrentStep(`Creating account for ${menteeData.firstName} ${menteeData.lastName}`)
-        setCreationProgress({ current: i, total: validMentees.length })
-
-        try {
-          // Create mentee account in Firebase Auth
-          const menteeCredential = await createUserWithEmailAndPassword(auth, menteeData.email, menteeData.password!)
-          const menteeUser = menteeCredential.user
-
-          const fullName = menteeData.middleName 
-            ? `${menteeData.firstName} ${menteeData.middleName} ${menteeData.lastName}`
-            : `${menteeData.firstName} ${menteeData.lastName}`
-
-          // Create mentee document in Firestore
-          const firestoreData = {
-            uid: menteeUser.uid,
-            firstName: menteeData.firstName,
-            lastName: menteeData.lastName,
-            middleName: menteeData.middleName || "",
-            name: fullName,
-            email: menteeUser.email,
-            password: menteeData.password,
-            role: "mentee",
-            enrollmentNo: menteeData.enrollmentNo,
-            registrationNo: menteeData.registrationNo,
-            parentsName: menteeData.parentsName,
-            parentsContact: menteeData.parentsContact,
-            classId: menteeData.classId!,
-            className: menteeData.className,
-            admissionBatch: menteeData.admissionBatch,
-            classRollNo: menteeData.classRollNo,
-            dob: menteeData.dob,
-            section: menteeData.section,
-            stream: menteeData.stream,
-            assignedMentorId: menteeData.assignedMentorId || "",
-            assignedMentorName: menteeData.assignedMentorName || "",
-            createdBy: adminUid,
-            createdAt: new Date(),
-          }
-
-          await addDoc(collection(db, "mentees"), firestoreData)
-          createdMentees.push({ ...firestoreData, uid: menteeUser.uid })
-
-          // Sign out mentee and sign back in as admin for next iteration
-          await signOut(auth)
-          if (adminEmail && i < validMentees.length - 1) {
-            await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
-          }
-
-        } catch (error: any) {
-          console.error(`Error creating mentee ${menteeData.firstName} ${menteeData.lastName}:`, error)
-          // Continue with other mentees even if one fails
+      // Update local state with successfully created mentees
+      const createdMentees = result.results.map((createdMentee: any) => {
+        const originalData = menteesData.find(m => m.email === createdMentee.email)
+        return {
+          uid: createdMentee.uid,
+          firstName: originalData?.firstName || "",
+          lastName: originalData?.lastName || "",
+          middleName: originalData?.middleName || "",
+          email: createdMentee.email,
+          password: originalData?.password || "",
+          role: "mentee",
+          enrollmentNo: originalData?.enrollmentNo || "",
+          registrationNo: originalData?.registrationNo || "",
+          parentsName: originalData?.parentsName || "",
+          parentsContact: originalData?.parentsContact || "",
+          classId: originalData?.classId || "",
+          className: originalData?.className || "",
+          admissionBatch: originalData?.admissionBatch || "",
+          classRollNo: originalData?.classRollNo || "",
+          dob: originalData?.dob || "",
+          section: originalData?.section || "",
+          stream: originalData?.stream || "",
+          assignedMentorId: originalData?.assignedMentorId || "",
+          assignedMentorName: originalData?.assignedMentorName || "",
+          createdAt: new Date()
         }
-      }
+      })
 
-      // Final sign in as admin
-      if (adminEmail) {
-        await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
-      }
-
-      // Update local state
       setMentees(prev => [...createdMentees, ...prev])
 
       // Reset form
@@ -585,10 +595,43 @@ export default function AdminMentees() {
       setIsBulkDialogOpen(false)
       setShowProgressDialog(false)
 
-      toast({
-        title: "Success",
-        description: `${createdMentees.length} mentee(s) created successfully!`,
-      })
+      // Show results
+      const successCount = result.summary.successful
+      const errorCount = result.summary.failed
+
+      if (errorCount > 0) {
+        toast({
+          title: "Partial Success",
+          description: `${successCount} mentees created successfully, ${errorCount} failed`,
+          variant: "default"
+        })
+
+        // Show detailed errors
+        if (result.errors && result.errors.length > 0) {
+          console.error("Creation errors:", result.errors)
+
+          // Group errors by type
+          const duplicateEmails = result.errors.filter((e: any) => e.error.includes('already exists'))
+          const otherErrors = result.errors.filter((e: any) => !e.error.includes('already exists'))
+
+          let errorMessage = ""
+          if (duplicateEmails.length > 0) {
+            errorMessage += `Duplicate emails: ${duplicateEmails.map((e: any) => e.email).join(', ')}`
+          }
+          if (otherErrors.length > 0) {
+            if (errorMessage) errorMessage += "\n"
+            errorMessage += `Other errors: ${otherErrors.map((e: any) => e.error).join(', ')}`
+          }
+
+          setError(errorMessage)
+        }
+      } else {
+        toast({
+          title: "Success",
+          description: `${successCount} mentee(s) created successfully!`,
+        })
+      }
+
     } catch (error: any) {
       console.error("Error creating mentees:", error)
       setError(error.message || "Failed to create mentees")
@@ -603,14 +646,98 @@ export default function AdminMentees() {
     }
   }
 
+  // Export mentees data
+  const exportMentees = (format: 'csv' | 'excel') => {
+    if (mentees.length === 0) {
+      toast({
+        title: "No data to export",
+        description: "There are no mentees to export",
+        variant: "destructive"
+      })
+      return
+    }
+
+    const headers = [
+      'UID', 'First Name', 'Middle Name', 'Last Name', 'Full Name', 'Email',
+      'Enrollment No', 'Registration No', 'Parents Name', 'Parents Contact',
+      'Class ID', 'Class Name', 'Section', 'Stream', 'Admission Batch',
+      'Class Roll No', 'Date of Birth', 'Assigned Mentor ID', 'Assigned Mentor Name',
+      'Password', 'Role', 'Created At'
+    ]
+
+    const data = mentees.map(mentee => [
+      mentee.uid,
+      mentee.firstName,
+      mentee.middleName || '',
+      mentee.lastName,
+      `${mentee.firstName} ${mentee.middleName || ''} ${mentee.lastName}`.trim(),
+      mentee.email,
+      mentee.enrollmentNo,
+      mentee.registrationNo,
+      mentee.parentsName,
+      mentee.parentsContact,
+      mentee.classId,
+      mentee.className,
+      mentee.section,
+      mentee.stream,
+      mentee.admissionBatch,
+      mentee.classRollNo,
+      mentee.dob,
+      mentee.assignedMentorId || '',
+      mentee.assignedMentorName || '',
+      mentee.password || '',
+      mentee.role,
+      mentee.createdAt ? new Date(mentee.createdAt.seconds * 1000).toISOString() : ''
+    ])
+
+    if (format === 'csv') {
+      const csvContent = [
+        headers.join(','),
+        ...data.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mentees_export_${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Export successful",
+        description: `${mentees.length} mentees exported to CSV`,
+      })
+    } else if (format === 'excel') {
+      // Create Excel-compatible CSV with UTF-8 BOM
+      const csvContent = '\uFEFF' + [
+        headers.join('\t'),
+        ...data.map(row => row.join('\t'))
+      ].join('\n')
+
+      const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `mentees_export_${new Date().toISOString().split('T')[0]}.xlsx`
+      a.click()
+      window.URL.revokeObjectURL(url)
+
+      toast({
+        title: "Export successful",
+        description: `${mentees.length} mentees exported to Excel format`,
+      })
+    }
+  }
+
   // Download CSV template
   const downloadCsvTemplate = () => {
     const headers = [
-      'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo', 
-      'registrationNo', 'parentsName', 'parentsContact', 'className', 
+      'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo',
+      'registrationNo', 'parentsName', 'parentsContact', 'className',
       'admissionBatch', 'classRollNo', 'dob', 'section', 'stream', 'assignedMentorName'
     ]
-    
+
     const sampleData = [
       'John', 'Doe', 'M', 'john.doe@example.com', 'EN2024001', 'REG2024001',
       'John Doe Sr', '+91-9876543210', 'Computer Science', '2024', '1',
@@ -814,7 +941,10 @@ export default function AdminMentees() {
                   </div>
 
                   {error && (
-                    <div className="text-red-600 text-sm">{error}</div>
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="text-red-800 text-sm font-medium mb-1">Error:</div>
+                      <div className="text-red-700 text-sm">{error}</div>
+                    </div>
                   )}
                 </div>
                 <DialogFooter>
@@ -842,13 +972,13 @@ export default function AdminMentees() {
                     Upload a CSV file to create multiple mentees at once.
                   </DialogDescription>
                 </DialogHeader>
-                
+
                 <Tabs defaultValue="upload" className="w-full">
                   <TabsList className="grid w-full grid-cols-2">
                     <TabsTrigger value="upload">Upload CSV</TabsTrigger>
                     <TabsTrigger value="template">Download Template</TabsTrigger>
                   </TabsList>
-                  
+
                   <TabsContent value="upload" className="space-y-4">
                     <div className="grid gap-4">
                       <div className="grid gap-2">
@@ -884,14 +1014,19 @@ export default function AdminMentees() {
                                 <AlertCircle className="h-4 w-4 mr-2" />
                                 Validation Errors ({validationErrors.length})
                               </h4>
-                              <ul className="text-sm text-red-700 space-y-1">
-                                {validationErrors.slice(0, 10).map((error, index) => (
-                                  <li key={index}>• {error}</li>
-                                ))}
-                                {validationErrors.length > 10 && (
-                                  <li>• ... and {validationErrors.length - 10} more errors</li>
-                                )}
-                              </ul>
+                              <div className="max-h-40 overflow-y-auto">
+                                <ul className="text-sm text-red-700 space-y-1">
+                                  {validationErrors.slice(0, 15).map((error, index) => (
+                                    <li key={index} className="break-words">• {error}</li>
+                                  ))}
+                                  {validationErrors.length > 15 && (
+                                    <li>• ... and {validationErrors.length - 15} more errors</li>
+                                  )}
+                                </ul>
+                              </div>
+                              <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs text-yellow-800">
+                                <strong>Tip:</strong> Remove duplicate emails from your CSV or use different email addresses for each mentee.
+                              </div>
                             </div>
                           )}
 
@@ -949,13 +1084,16 @@ export default function AdminMentees() {
                           </div>
 
                           {error && (
-                            <div className="text-red-600 text-sm">{error}</div>
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                              <div className="text-red-800 text-sm font-medium mb-1">Creation Errors:</div>
+                              <div className="text-red-700 text-sm whitespace-pre-line">{error}</div>
+                            </div>
                           )}
                         </div>
                       )}
                     </div>
                   </TabsContent>
-                  
+
                   <TabsContent value="template" className="space-y-4">
                     <div className="text-center py-8">
                       <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -995,7 +1133,7 @@ export default function AdminMentees() {
         </div>
 
         {/* Progress Dialog */}
-        <Dialog open={showProgressDialog} onOpenChange={() => {}}>
+        <Dialog open={showProgressDialog} onOpenChange={() => { }}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
               <DialogTitle>Creating Mentees</DialogTitle>
@@ -1010,8 +1148,8 @@ export default function AdminMentees() {
                   <span>{creationProgress.current} of {creationProgress.total}</span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
-                  <div 
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${(creationProgress.current / creationProgress.total) * 100}%` }}
                   ></div>
                 </div>
@@ -1032,52 +1170,159 @@ export default function AdminMentees() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                All Mentees ({mentees.length})
-              </CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  All Mentees ({mentees.length})
+                </CardTitle>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportMentees('csv')}
+                    className="flex items-center gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export CSV
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => exportMentees('excel')}
+                    className="flex items-center gap-2"
+                  >
+                    <FileText className="h-4 w-4" />
+                    Export Excel
+                  </Button>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Enrollment No</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Mentor</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {mentees.map((mentee) => (
-                      <TableRow key={mentee.uid}>
-                        <TableCell>
-                          {mentee.firstName} {mentee.middleName} {mentee.lastName}
-                        </TableCell>
-                        <TableCell>{mentee.email}</TableCell>
-                        <TableCell>{mentee.enrollmentNo}</TableCell>
-                        <TableCell>{mentee.className}</TableCell>
-                        <TableCell>{mentee.assignedMentorName || 'Not assigned'}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button variant="outline" size="sm">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="outline" size="sm" className="text-red-600">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
+              <div className="border rounded-lg overflow-hidden">
+                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
+                  <Table>
+                    <TableHeader className="sticky top-0 bg-gray-50 z-10">
+                      <TableRow>
+                        <TableHead className="min-w-[200px] font-semibold">Full Name</TableHead>
+                        <TableHead className="min-w-[250px] font-semibold">Email</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold">Enrollment No</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold">Registration No</TableHead>
+                        <TableHead className="min-w-[200px] font-semibold">Class</TableHead>
+                        <TableHead className="min-w-[100px] font-semibold">Section</TableHead>
+                        <TableHead className="min-w-[180px] font-semibold">Stream</TableHead>
+                        <TableHead className="min-w-[100px] font-semibold">Roll No</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold">Admission Batch</TableHead>
+                        <TableHead className="min-w-[100px] font-semibold">DOB</TableHead>
+                        <TableHead className="min-w-[180px] font-semibold">Parents Name</TableHead>
+                        <TableHead className="min-w-[140px] font-semibold">Parents Contact</TableHead>
+                        <TableHead className="min-w-[180px] font-semibold">Assigned Mentor</TableHead>
+                        <TableHead className="min-w-[120px] font-semibold sticky right-0 bg-gray-50">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {mentees.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={14} className="text-center py-8 text-gray-500">
+                            <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                            <p className="text-lg font-medium">No mentees found</p>
+                            <p className="text-sm">Create your first mentee to get started</p>
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        mentees.map((mentee, index) => (
+                          <TableRow key={mentee.uid} className={index % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                            <TableCell className="font-medium">
+                              <div className="flex flex-col">
+                                <span className="font-semibold text-gray-900">
+                                  {mentee.firstName} {mentee.middleName} {mentee.lastName}
+                                </span>
+                                <span className="text-xs text-gray-500">ID: {mentee.uid.slice(0, 8)}...</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="text-sm">{mentee.email}</span>
+                                <Badge variant="outline" className="w-fit text-xs">
+                                  {mentee.role}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-sm">{mentee.enrollmentNo}</TableCell>
+                            <TableCell className="font-mono text-sm">{mentee.registrationNo}</TableCell>
+                            <TableCell>
+                              <div className="flex flex-col">
+                                <span className="font-medium">{mentee.className}</span>
+                                <span className="text-xs text-gray-500">{mentee.stream}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary" className="text-xs">
+                                {mentee.section}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-sm">{mentee.stream}</TableCell>
+                            <TableCell className="font-mono text-sm">{mentee.classRollNo}</TableCell>
+                            <TableCell className="text-sm">{mentee.admissionBatch}</TableCell>
+                            <TableCell className="text-sm">{mentee.dob}</TableCell>
+                            <TableCell className="text-sm">{mentee.parentsName}</TableCell>
+                            <TableCell className="text-sm">{mentee.parentsContact}</TableCell>
+                            <TableCell>
+                              {mentee.assignedMentorName ? (
+                                <div className="flex flex-col">
+                                  <span className="text-sm font-medium text-green-700">
+                                    {mentee.assignedMentorName}
+                                  </span>
+                                  <Badge variant="outline" className="w-fit text-xs text-green-600 border-green-200">
+                                    Assigned
+                                  </Badge>
+                                </div>
+                              ) : (
+                                <Badge variant="outline" className="text-xs text-gray-500">
+                                  Not assigned
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="sticky right-0 bg-inherit">
+                              <div className="flex gap-1">
+                                <Button variant="outline" size="sm" title="View Details">
+                                  <Eye className="h-3 w-3" />
+                                </Button>
+                                <Button variant="outline" size="sm" title="Edit Mentee">
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700 hover:border-red-300"
+                                  title="Delete Mentee"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
+
+              {mentees.length > 0 && (
+                <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
+                  <div>
+                    Showing {mentees.length} mentee{mentees.length !== 1 ? 's' : ''}
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      Assigned: {mentees.filter(m => m.assignedMentorName).length}
+                    </div>
+                    <div>
+                      Unassigned: {mentees.filter(m => !m.assignedMentorName).length}
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
