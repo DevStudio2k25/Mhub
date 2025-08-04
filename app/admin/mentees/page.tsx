@@ -1,13 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, query, where } from "firebase/firestore"
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore"
 import { db, auth } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Plus, Trash2, Users, Edit, Eye, UserPlus, Download, Upload, FileText, Users2 } from "lucide-react"
+import { Plus, Trash2, Users, Edit, Eye, UserPlus, Download, Upload, FileText, Users2, Check, X, AlertCircle } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,6 +15,9 @@ import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createUserWithEmailAndPassword, signOut, signInWithEmailAndPassword } from "firebase/auth"
 import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 interface ClassInfo {
   id: string
@@ -55,6 +58,29 @@ interface Mentee {
   createdAt: any
 }
 
+interface CsvMenteeData {
+  firstName: string
+  lastName: string
+  middleName: string
+  email: string
+  enrollmentNo: string
+  registrationNo: string
+  parentsName: string
+  parentsContact: string
+  className: string
+  admissionBatch: string
+  classRollNo: string
+  dob: string
+  section: string
+  stream: string
+  assignedMentorName: string
+  classId?: string
+  assignedMentorId?: string
+  password?: string
+  isValid?: boolean
+  errors?: string[]
+}
+
 export default function AdminMentees() {
   const { userData } = useAuth()
   const { toast } = useToast()
@@ -62,6 +88,8 @@ export default function AdminMentees() {
   const [classes, setClasses] = useState<ClassInfo[]>([])
   const [mentors, setMentors] = useState<MentorInfo[]>([])
   const [loading, setLoading] = useState(true)
+  
+  // Single mentee creation
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [selectedMentee, setSelectedMentee] = useState<Mentee | null>(null)
@@ -85,14 +113,22 @@ export default function AdminMentees() {
     stream: "",
     assignedMentorId: ""
   })
+  
+  // Bulk creation states
+  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false)
+  const [bulkMode, setBulkMode] = useState<'single' | 'multiple'>('single')
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvData, setCsvData] = useState<CsvMenteeData[]>([])
+  const [showPreview, setShowPreview] = useState(false)
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
+  
+  // Creation process states
   const [error, setError] = useState("")
   const [isCreating, setIsCreating] = useState(false)
   const [adminPassword, setAdminPassword] = useState("")
-  const [isBulkDialogOpen, setIsBulkDialogOpen] = useState(false)
-  const [bulkMentees, setBulkMentees] = useState("")
-  const [isBulkCreating, setIsBulkCreating] = useState(false)
-  const [csvFile, setCsvFile] = useState<File | null>(null)
-  const [isImporting, setIsImporting] = useState(false)
+  const [creationProgress, setCreationProgress] = useState<{ current: number, total: number }>({ current: 0, total: 0 })
+  const [showProgressDialog, setShowProgressDialog] = useState(false)
+  const [currentStep, setCurrentStep] = useState("")
 
   // Function to generate a secure random password
   function generateRandomPassword() {
@@ -190,11 +226,131 @@ export default function AdminMentees() {
     }
   }, [userData, toast])
 
-  const handleCreateMentee = async () => {
+  // Handle CSV file upload and parsing
+  const handleCsvUpload = async (file: File) => {
+    try {
+      const text = await file.text()
+      const lines = text.split('\n').filter(line => line.trim())
+      
+      if (lines.length === 0) {
+        throw new Error("CSV file is empty")
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim())
+      
+      // Validate headers
+      const requiredHeaders = [
+        'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo', 
+        'registrationNo', 'parentsName', 'parentsContact', 'className', 
+        'admissionBatch', 'classRollNo', 'dob', 'section', 'stream', 'assignedMentorName'
+      ]
+
+      const missingHeaders = requiredHeaders.filter(header => !headers.includes(header))
+      if (missingHeaders.length > 0) {
+        throw new Error(`Missing required headers: ${missingHeaders.join(', ')}`)
+      }
+
+      // Parse data
+      const parsedData: CsvMenteeData[] = []
+      const errors: string[] = []
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim()
+        if (!line) continue
+
+        const values = line.split(',').map(v => v.trim())
+        const menteeData: any = {}
+        
+        headers.forEach((header, index) => {
+          menteeData[header] = values[index] || ""
+        })
+
+        // Validate and enrich data
+        const rowErrors: string[] = []
+        
+        // Check required fields
+        if (!menteeData.firstName) rowErrors.push("First name is required")
+        if (!menteeData.lastName) rowErrors.push("Last name is required")
+        if (!menteeData.email) rowErrors.push("Email is required")
+        if (!menteeData.enrollmentNo) rowErrors.push("Enrollment number is required")
+        
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+        if (menteeData.email && !emailRegex.test(menteeData.email)) {
+          rowErrors.push("Invalid email format")
+        }
+
+        // Check for duplicate emails in existing mentees
+        const existingMentee = mentees.find(m => m.email.toLowerCase() === menteeData.email.toLowerCase())
+        if (existingMentee) {
+          rowErrors.push("Email already exists in database")
+        }
+
+        // Find class by name
+        const foundClass = classes.find(cls => cls.name === menteeData.className)
+        if (menteeData.className && !foundClass) {
+          rowErrors.push(`Class "${menteeData.className}" not found`)
+        }
+
+        // Find mentor by name
+        const foundMentor = mentors.find(m => m.name === menteeData.assignedMentorName)
+        if (menteeData.assignedMentorName && !foundMentor) {
+          rowErrors.push(`Mentor "${menteeData.assignedMentorName}" not found`)
+        }
+
+        // Add enriched data
+        const enrichedData: CsvMenteeData = {
+          ...menteeData,
+          classId: foundClass?.id || "",
+          assignedMentorId: foundMentor?.id || "",
+          password: generateRandomPassword(),
+          isValid: rowErrors.length === 0,
+          errors: rowErrors
+        }
+
+        parsedData.push(enrichedData)
+
+        if (rowErrors.length > 0) {
+          errors.push(`Row ${i + 1}: ${rowErrors.join(', ')}`)
+        }
+      }
+
+      // Determine if single or multiple mentees
+      setBulkMode(parsedData.length === 1 ? 'single' : 'multiple')
+      setCsvData(parsedData)
+      setValidationErrors(errors)
+      setShowPreview(true)
+
+      if (errors.length === 0) {
+        toast({
+          title: "CSV parsed successfully",
+          description: `${parsedData.length} mentee(s) ready for creation`,
+        })
+      } else {
+        toast({
+          title: "CSV parsed with errors",
+          description: `${errors.length} validation error(s) found`,
+          variant: "destructive"
+        })
+      }
+
+    } catch (error: any) {
+      console.error("Error parsing CSV:", error)
+      setError(error.message || "Failed to parse CSV file")
+      toast({
+        title: "Error",
+        description: error.message || "Failed to parse CSV file",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Handle single mentee creation
+  const handleCreateSingleMentee = async () => {
     if (!newMentee.firstName || !newMentee.lastName || !newMentee.email || !newMentee.password ||
         !newMentee.enrollmentNo || !newMentee.registrationNo || !newMentee.parentsName || 
         !newMentee.parentsContact || !newMentee.classId || !newMentee.admissionBatch || 
-        !newMentee.classRollNo || !newMentee.dob || !newMentee.section || !newMentee.stream) {
+        !newMentee.classRollNo || !newMentee.dob) {
       setError("Please fill all required fields")
       return
     }
@@ -235,7 +391,7 @@ export default function AdminMentees() {
         middleName: newMentee.middleName || "",
         name: fullName,
         email: menteeUser.email,
-        password: newMentee.password, // Store for export
+        password: newMentee.password,
         role: "mentee",
         enrollmentNo: newMentee.enrollmentNo,
         registrationNo: newMentee.registrationNo,
@@ -246,8 +402,8 @@ export default function AdminMentees() {
         admissionBatch: newMentee.admissionBatch,
         classRollNo: newMentee.classRollNo,
         dob: newMentee.dob,
-        section: newMentee.section,
-        stream: newMentee.stream,
+        section: selectedClass?.section || "",
+        stream: selectedClass?.stream || "",
         assignedMentorId: newMentee.assignedMentorId || "",
         assignedMentorName: mentors.find(m => m.id === newMentee.assignedMentorId)?.name || "",
         createdBy: adminUid,
@@ -280,8 +436,8 @@ export default function AdminMentees() {
         admissionBatch: newMentee.admissionBatch,
         classRollNo: newMentee.classRollNo,
         dob: newMentee.dob,
-        section: newMentee.section,
-        stream: newMentee.stream,
+        section: selectedClass?.section || "",
+        stream: selectedClass?.stream || "",
         assignedMentorId: newMentee.assignedMentorId || "",
         assignedMentorName: mentors.find(m => m.id === newMentee.assignedMentorId)?.name || "",
         createdAt: new Date()
@@ -328,91 +484,12 @@ export default function AdminMentees() {
     }
   }
 
-  const handleUpdateMentee = async () => {
-    if (!selectedMentee) return
-
-    setError("")
-    setIsCreating(true)
-
-    try {
-      const menteeRef = doc(db, "mentees", selectedMentee.uid)
-      await updateDoc(menteeRef, {
-        firstName: newMentee.firstName,
-        lastName: newMentee.lastName,
-        middleName: newMentee.middleName || "",
-        name: newMentee.middleName 
-          ? `${newMentee.firstName} ${newMentee.middleName} ${newMentee.lastName}`
-          : `${newMentee.firstName} ${newMentee.lastName}`,
-        enrollmentNo: newMentee.enrollmentNo,
-        registrationNo: newMentee.registrationNo,
-        parentsName: newMentee.parentsName,
-        parentsContact: newMentee.parentsContact,
-        classId: newMentee.classId,
-        className: classes.find(cls => cls.id === newMentee.classId)?.name || "",
-        admissionBatch: newMentee.admissionBatch,
-        classRollNo: newMentee.classRollNo,
-        dob: newMentee.dob,
-        section: newMentee.section,
-        stream: newMentee.stream,
-        assignedMentorId: newMentee.assignedMentorId || "",
-        assignedMentorName: mentors.find(m => m.id === newMentee.assignedMentorId)?.name || "",
-      })
-
-      // Update local state
-      setMentees(prev => prev.map(mentee => 
-        mentee.uid === selectedMentee.uid 
-          ? { ...mentee, ...newMentee }
-          : mentee
-      ))
-
-      setIsEditDialogOpen(false)
-      setSelectedMentee(null)
-
-      toast({
-        title: "Success",
-        description: "Mentee updated successfully!",
-      })
-    } catch (error: any) {
-      console.error("Error updating mentee:", error)
-      setError(error.message || "Failed to update mentee")
-      toast({
-        title: "Error",
-        description: "Failed to update mentee",
-        variant: "destructive"
-      })
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  const handleEditMentee = (mentee: Mentee) => {
-    setSelectedMentee(mentee)
-    setNewMentee({
-      firstName: mentee.firstName,
-      lastName: mentee.lastName,
-      middleName: mentee.middleName || "",
-      email: mentee.email,
-      password: mentee.password,
-      role: mentee.role,
-      enrollmentNo: mentee.enrollmentNo,
-      registrationNo: mentee.registrationNo,
-      parentsName: mentee.parentsName,
-      parentsContact: mentee.parentsContact,
-      classId: mentee.classId,
-      className: mentee.className,
-      admissionBatch: mentee.admissionBatch,
-      classRollNo: mentee.classRollNo,
-      dob: mentee.dob,
-      section: mentee.section,
-      stream: mentee.stream,
-      assignedMentorId: mentee.assignedMentorId || ""
-    })
-    setIsEditDialogOpen(true)
-  }
-
-  const handleBulkCreateMentees = async () => {
-    if (!bulkMentees.trim()) {
-      setError("Please enter mentee data")
+  // Handle bulk mentee creation
+  const handleCreateBulkMentees = async () => {
+    const validMentees = csvData.filter(mentee => mentee.isValid)
+    
+    if (validMentees.length === 0) {
+      setError("No valid mentees to create")
       return
     }
 
@@ -422,7 +499,9 @@ export default function AdminMentees() {
     }
 
     setError("")
-    setIsBulkCreating(true)
+    setIsCreating(true)
+    setShowProgressDialog(true)
+    setCreationProgress({ current: 0, total: validMentees.length })
 
     try {
       // Store current admin credentials
@@ -434,93 +513,83 @@ export default function AdminMentees() {
         await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
       }
 
-      const lines = bulkMentees.trim().split('\n')
       const createdMentees: any[] = []
 
-      for (const line of lines) {
-        if (!line.trim()) continue
+      for (let i = 0; i < validMentees.length; i++) {
+        const menteeData = validMentees[i]
+        setCurrentStep(`Creating account for ${menteeData.firstName} ${menteeData.lastName}`)
+        setCreationProgress({ current: i, total: validMentees.length })
 
-        const fields = line.split(',').map(field => field.trim())
-        
-        if (fields.length < 15) {
-          throw new Error(`Invalid data format. Expected 15+ fields, got ${fields.length}`)
+        try {
+          // Create mentee account in Firebase Auth
+          const menteeCredential = await createUserWithEmailAndPassword(auth, menteeData.email, menteeData.password!)
+          const menteeUser = menteeCredential.user
+
+          const fullName = menteeData.middleName 
+            ? `${menteeData.firstName} ${menteeData.middleName} ${menteeData.lastName}`
+            : `${menteeData.firstName} ${menteeData.lastName}`
+
+          // Create mentee document in Firestore
+          const firestoreData = {
+            uid: menteeUser.uid,
+            firstName: menteeData.firstName,
+            lastName: menteeData.lastName,
+            middleName: menteeData.middleName || "",
+            name: fullName,
+            email: menteeUser.email,
+            password: menteeData.password,
+            role: "mentee",
+            enrollmentNo: menteeData.enrollmentNo,
+            registrationNo: menteeData.registrationNo,
+            parentsName: menteeData.parentsName,
+            parentsContact: menteeData.parentsContact,
+            classId: menteeData.classId!,
+            className: menteeData.className,
+            admissionBatch: menteeData.admissionBatch,
+            classRollNo: menteeData.classRollNo,
+            dob: menteeData.dob,
+            section: menteeData.section,
+            stream: menteeData.stream,
+            assignedMentorId: menteeData.assignedMentorId || "",
+            assignedMentorName: menteeData.assignedMentorName || "",
+            createdBy: adminUid,
+            createdAt: new Date(),
+          }
+
+          await addDoc(collection(db, "mentees"), firestoreData)
+          createdMentees.push({ ...firestoreData, uid: menteeUser.uid })
+
+          // Sign out mentee and sign back in as admin for next iteration
+          await signOut(auth)
+          if (adminEmail && i < validMentees.length - 1) {
+            await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
+          }
+
+        } catch (error: any) {
+          console.error(`Error creating mentee ${menteeData.firstName} ${menteeData.lastName}:`, error)
+          // Continue with other mentees even if one fails
         }
-
-        const [
-          firstName, lastName, middleName, email, enrollmentNo, registrationNo,
-          parentsName, parentsContact, className, admissionBatch, classRollNo,
-          dob, section, stream, assignedMentorName
-        ] = fields
-
-        // Find class by name
-        const selectedClass = classes.find(cls => cls.name === className)
-        if (!selectedClass) {
-          throw new Error(`Class not found: ${className}`)
-        }
-
-        // Find mentor by name
-        const selectedMentor = mentors.find(m => m.name === assignedMentorName)
-        const mentorId = selectedMentor?.id || ""
-
-        // Generate password
-        const password = generateRandomPassword()
-
-        // Create mentee account in Firebase Auth
-        const menteeCredential = await createUserWithEmailAndPassword(auth, email, password)
-        const menteeUser = menteeCredential.user
-
-        const fullName = middleName 
-          ? `${firstName} ${middleName} ${lastName}`
-          : `${firstName} ${lastName}`
-
-        // Create mentee document in Firestore
-        const menteeData = {
-          uid: menteeUser.uid,
-          firstName,
-          lastName,
-          middleName: middleName || "",
-          name: fullName,
-          email: menteeUser.email,
-          password,
-          role: "mentee",
-          enrollmentNo,
-          registrationNo,
-          parentsName,
-          parentsContact,
-          classId: selectedClass.id,
-          className: selectedClass.name,
-          admissionBatch,
-          classRollNo,
-          dob,
-          section,
-          stream,
-          assignedMentorId: mentorId,
-          assignedMentorName: selectedMentor?.name || "",
-          createdBy: adminUid,
-          createdAt: new Date(),
-        }
-
-        await addDoc(collection(db, "mentees"), menteeData)
-        createdMentees.push({ ...menteeData, uid: menteeUser.uid })
       }
 
-      // Sign out mentee and sign back in as admin
-      await signOut(auth)
+      // Final sign in as admin
       if (adminEmail) {
         await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
       }
 
-      // Add to local state
+      // Update local state
       setMentees(prev => [...createdMentees, ...prev])
 
       // Reset form
-      setBulkMentees("")
+      setCsvFile(null)
+      setCsvData([])
+      setShowPreview(false)
       setAdminPassword("")
       setIsBulkDialogOpen(false)
+      setShowProgressDialog(false)
 
       toast({
         title: "Success",
-        description: `${createdMentees.length} mentees created successfully!`,
+        description: `${createdMentees.length} mentee(s) created successfully!`,
       })
     } catch (error: any) {
       console.error("Error creating mentees:", error)
@@ -531,153 +600,12 @@ export default function AdminMentees() {
         variant: "destructive"
       })
     } finally {
-      setIsBulkCreating(false)
+      setIsCreating(false)
+      setShowProgressDialog(false)
     }
   }
 
-  const handleCsvImport = async () => {
-    if (!csvFile) {
-      setError("Please select a CSV file")
-      return
-    }
-
-    if (!adminPassword) {
-      setError("Please enter your admin password to confirm")
-      return
-    }
-
-    setError("")
-    setIsImporting(true)
-
-    try {
-      const text = await csvFile.text()
-      const lines = text.split('\n')
-      const headers = lines[0].split(',').map(h => h.trim())
-      
-      // Validate headers
-      const requiredHeaders = [
-        'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo', 
-        'registrationNo', 'parentsName', 'parentsContact', 'className', 
-        'admissionBatch', 'classRollNo', 'dob', 'section', 'stream', 'assignedMentorName'
-      ]
-
-      for (const header of requiredHeaders) {
-        if (!headers.includes(header)) {
-          throw new Error(`Missing required header: ${header}`)
-        }
-      }
-
-      // Store current admin credentials
-      const adminEmail = auth.currentUser?.email
-      const adminUid = auth.currentUser?.uid
-
-      // Validate admin password
-      if (adminEmail) {
-        await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
-      }
-
-      const createdMentees: any[] = []
-
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i].trim()
-        if (!line) continue
-
-        const values = line.split(',').map(v => v.trim())
-        const menteeData: any = {}
-        
-        headers.forEach((header, index) => {
-          menteeData[header] = values[index] || ""
-        })
-
-        const {
-          firstName, lastName, middleName, email, enrollmentNo, registrationNo,
-          parentsName, parentsContact, className, admissionBatch, classRollNo,
-          dob, section, stream, assignedMentorName
-        } = menteeData
-
-        // Find class by name
-        const selectedClass = classes.find(cls => cls.name === className)
-        if (!selectedClass) {
-          throw new Error(`Class not found: ${className}`)
-        }
-
-        // Find mentor by name
-        const selectedMentor = mentors.find(m => m.name === assignedMentorName)
-        const mentorId = selectedMentor?.id || ""
-
-        // Generate password
-        const password = generateRandomPassword()
-
-        // Create mentee account in Firebase Auth
-        const menteeCredential = await createUserWithEmailAndPassword(auth, email, password)
-        const menteeUser = menteeCredential.user
-
-        const fullName = middleName 
-          ? `${firstName} ${middleName} ${lastName}`
-          : `${firstName} ${lastName}`
-
-        // Create mentee document in Firestore
-        const firestoreData = {
-          uid: menteeUser.uid,
-          firstName,
-          lastName,
-          middleName: middleName || "",
-          name: fullName,
-          email: menteeUser.email,
-          password,
-          role: "mentee",
-          enrollmentNo,
-          registrationNo,
-          parentsName,
-          parentsContact,
-          classId: selectedClass.id,
-          className: selectedClass.name,
-          admissionBatch,
-          classRollNo,
-          dob,
-          section,
-          stream,
-          assignedMentorId: mentorId,
-          assignedMentorName: selectedMentor?.name || "",
-          createdBy: adminUid,
-          createdAt: new Date(),
-        }
-
-        await addDoc(collection(db, "mentees"), firestoreData)
-        createdMentees.push({ ...firestoreData, uid: menteeUser.uid })
-      }
-
-      // Sign out mentee and sign back in as admin
-      await signOut(auth)
-      if (adminEmail) {
-        await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
-      }
-
-      // Add to local state
-      setMentees(prev => [...createdMentees, ...prev])
-
-      // Reset form
-      setCsvFile(null)
-      setAdminPassword("")
-      setIsBulkDialogOpen(false)
-
-      toast({
-        title: "Success",
-        description: `${createdMentees.length} mentees imported successfully!`,
-      })
-    } catch (error: any) {
-      console.error("Error importing mentees:", error)
-      setError(error.message || "Failed to import mentees")
-      toast({
-        title: "Error",
-        description: "Failed to import mentees",
-        variant: "destructive"
-      })
-    } finally {
-      setIsImporting(false)
-    }
-  }
-
+  // Download CSV template
   const downloadCsvTemplate = () => {
     const headers = [
       'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo', 
@@ -718,7 +646,7 @@ export default function AdminMentees() {
               <DialogTrigger asChild>
                 <Button className="bg-blue-600 hover:bg-blue-700">
                   <UserPlus className="h-4 w-4 mr-2" />
-                  Create New Mentee
+                  Create Single Mentee
                 </Button>
               </DialogTrigger>
               <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
@@ -815,7 +743,7 @@ export default function AdminMentees() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-3 gap-4">
                     <div className="grid gap-2">
                       <Label htmlFor="classId">Class *</Label>
                       <Select value={newMentee.classId} onValueChange={(value) => setNewMentee(prev => ({ ...prev, classId: value }))}>
@@ -830,6 +758,34 @@ export default function AdminMentees() {
                           ))}
                         </SelectContent>
                       </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="admissionBatch">Admission Batch *</Label>
+                      <Input
+                        id="admissionBatch"
+                        value={newMentee.admissionBatch}
+                        onChange={(e) => setNewMentee(prev => ({ ...prev, admissionBatch: e.target.value }))}
+                      />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="classRollNo">Class Roll No *</Label>
+                      <Input
+                        id="classRollNo"
+                        value={newMentee.classRollNo}
+                        onChange={(e) => setNewMentee(prev => ({ ...prev, classRollNo: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="dob">Date of Birth *</Label>
+                      <Input
+                        id="dob"
+                        type="date"
+                        value={newMentee.dob}
+                        onChange={(e) => setNewMentee(prev => ({ ...prev, dob: e.target.value }))}
+                      />
                     </div>
                     <div className="grid gap-2">
                       <Label htmlFor="assignedMentorId">Assign to Mentor</Label>
@@ -848,53 +804,6 @@ export default function AdminMentees() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="admissionBatch">Admission Batch *</Label>
-                      <Input
-                        id="admissionBatch"
-                        value={newMentee.admissionBatch}
-                        onChange={(e) => setNewMentee(prev => ({ ...prev, admissionBatch: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="classRollNo">Class Roll No *</Label>
-                      <Input
-                        id="classRollNo"
-                        value={newMentee.classRollNo}
-                        onChange={(e) => setNewMentee(prev => ({ ...prev, classRollNo: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="dob">Date of Birth *</Label>
-                      <Input
-                        id="dob"
-                        type="date"
-                        value={newMentee.dob}
-                        onChange={(e) => setNewMentee(prev => ({ ...prev, dob: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="section">Section *</Label>
-                      <Input
-                        id="section"
-                        value={newMentee.section}
-                        onChange={(e) => setNewMentee(prev => ({ ...prev, section: e.target.value }))}
-                      />
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="stream">Stream *</Label>
-                      <Input
-                        id="stream"
-                        value={newMentee.stream}
-                        onChange={(e) => setNewMentee(prev => ({ ...prev, stream: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-
                   <div className="grid gap-2">
                     <Label htmlFor="adminPassword">Admin Password *</Label>
                     <Input
@@ -905,308 +814,276 @@ export default function AdminMentees() {
                       placeholder="Enter your admin password to confirm"
                     />
                   </div>
+
+                  {error && (
+                    <div className="text-red-600 text-sm">{error}</div>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancel
                   </Button>
-                  <Button onClick={handleCreateMentee} disabled={isCreating}>
+                  <Button onClick={handleCreateSingleMentee} disabled={isCreating}>
                     {isCreating ? "Creating..." : "Create Mentee"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-            
+
             <Dialog open={isBulkDialogOpen} onOpenChange={setIsBulkDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" className="bg-green-600 hover:bg-green-700 text-white">
+                <Button className="bg-green-600 hover:bg-green-700">
                   <Users2 className="h-4 w-4 mr-2" />
-                  Bulk Create
+                  Bulk Create Mentees
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
+              <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>Bulk Create Mentees</DialogTitle>
                   <DialogDescription>
-                    Create multiple mentees at once. You can either paste CSV data or upload a CSV file.
+                    Upload a CSV file to create multiple mentees at once.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label>CSV Data (One mentee per line, comma-separated)</Label>
-                    <Textarea
-                      value={bulkMentees}
-                      onChange={(e) => setBulkMentees(e.target.value)}
-                      placeholder="firstName,lastName,middleName,email,enrollmentNo,registrationNo,parentsName,parentsContact,className,admissionBatch,classRollNo,dob,section,stream,assignedMentorName"
-                      rows={10}
-                    />
-                    <p className="text-sm text-muted-foreground">
-                      Format: firstName,lastName,middleName,email,enrollmentNo,registrationNo,parentsName,parentsContact,className,admissionBatch,classRollNo,dob,section,stream,assignedMentorName
-                    </p>
-                  </div>
+                
+                <Tabs defaultValue="upload" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2">
+                    <TabsTrigger value="upload">Upload CSV</TabsTrigger>
+                    <TabsTrigger value="template">Download Template</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="upload" className="space-y-4">
+                    <div className="grid gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="csvFile">Select CSV File</Label>
+                        <Input
+                          id="csvFile"
+                          type="file"
+                          accept=".csv"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              setCsvFile(file)
+                              handleCsvUpload(file)
+                            }
+                          }}
+                        />
+                      </div>
 
-                  <div className="grid gap-2">
-                    <Label>Or Upload CSV File</Label>
-                    <Input
-                      type="file"
-                      accept=".csv"
-                      onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                    />
-                  </div>
+                      {showPreview && (
+                        <div className="space-y-4">
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold">
+                              Preview ({csvData.length} mentee{csvData.length !== 1 ? 's' : ''})
+                            </h3>
+                            <Badge variant={validationErrors.length === 0 ? "default" : "destructive"}>
+                              {bulkMode === 'single' ? 'Single Mentee' : 'Multiple Mentees'}
+                            </Badge>
+                          </div>
 
-                  <div className="grid gap-2">
-                    <Label htmlFor="bulk-adminPassword">Admin Password *</Label>
-                    <Input
-                      id="bulk-adminPassword"
-                      type="password"
-                      value={adminPassword}
-                      onChange={(e) => setAdminPassword(e.target.value)}
-                      placeholder="Enter your admin password to confirm"
-                    />
-                  </div>
+                          {validationErrors.length > 0 && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                              <h4 className="font-medium text-red-800 mb-2 flex items-center">
+                                <AlertCircle className="h-4 w-4 mr-2" />
+                                Validation Errors ({validationErrors.length})
+                              </h4>
+                              <ul className="text-sm text-red-700 space-y-1">
+                                {validationErrors.slice(0, 10).map((error, index) => (
+                                  <li key={index}>• {error}</li>
+                                ))}
+                                {validationErrors.length > 10 && (
+                                  <li>• ... and {validationErrors.length - 10} more errors</li>
+                                )}
+                              </ul>
+                            </div>
+                          )}
 
-                  <div className="flex gap-2">
-                    <Button variant="outline" onClick={downloadCsvTemplate}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Template
-                    </Button>
-                  </div>
-                </div>
+                          <div className="border rounded-lg overflow-hidden">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Name</TableHead>
+                                  <TableHead>Email</TableHead>
+                                  <TableHead>Enrollment</TableHead>
+                                  <TableHead>Class</TableHead>
+                                  <TableHead>Mentor</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {csvData.slice(0, 10).map((mentee, index) => (
+                                  <TableRow key={index}>
+                                    <TableCell>
+                                      {mentee.isValid ? (
+                                        <Check className="h-4 w-4 text-green-600" />
+                                      ) : (
+                                        <X className="h-4 w-4 text-red-600" />
+                                      )}
+                                    </TableCell>
+                                    <TableCell>
+                                      {mentee.firstName} {mentee.middleName} {mentee.lastName}
+                                    </TableCell>
+                                    <TableCell>{mentee.email}</TableCell>
+                                    <TableCell>{mentee.enrollmentNo}</TableCell>
+                                    <TableCell>{mentee.className}</TableCell>
+                                    <TableCell>{mentee.assignedMentorName || 'Not assigned'}</TableCell>
+                                  </TableRow>
+                                ))}
+                                {csvData.length > 10 && (
+                                  <TableRow>
+                                    <TableCell colSpan={6} className="text-center text-gray-500">
+                                      ... and {csvData.length - 10} more mentees
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </TableBody>
+                            </Table>
+                          </div>
+
+                          <div className="grid gap-2">
+                            <Label htmlFor="bulkAdminPassword">Admin Password *</Label>
+                            <Input
+                              id="bulkAdminPassword"
+                              type="password"
+                              value={adminPassword}
+                              onChange={(e) => setAdminPassword(e.target.value)}
+                              placeholder="Enter your admin password to confirm"
+                            />
+                          </div>
+
+                          {error && (
+                            <div className="text-red-600 text-sm">{error}</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </TabsContent>
+                  
+                  <TabsContent value="template" className="space-y-4">
+                    <div className="text-center py-8">
+                      <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <h3 className="text-lg font-semibold mb-2">Download CSV Template</h3>
+                      <p className="text-gray-600 mb-4">
+                        Download the template file with sample data and required headers.
+                      </p>
+                      <Button onClick={downloadCsvTemplate}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Template
+                      </Button>
+                    </div>
+                  </TabsContent>
+                </Tabs>
+
                 <DialogFooter>
-                  <Button variant="outline" onClick={() => setIsBulkDialogOpen(false)}>
+                  <Button variant="outline" onClick={() => {
+                    setIsBulkDialogOpen(false)
+                    setCsvFile(null)
+                    setCsvData([])
+                    setShowPreview(false)
+                    setValidationErrors([])
+                    setAdminPassword("")
+                    setError("")
+                  }}>
                     Cancel
                   </Button>
-                  <Button 
-                    onClick={csvFile ? handleCsvImport : handleBulkCreateMentees} 
-                    disabled={isBulkCreating || isImporting}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {isBulkCreating || isImporting ? "Creating..." : "Create Mentees"}
-                  </Button>
+                  {showPreview && csvData.filter(m => m.isValid).length > 0 && (
+                    <Button onClick={handleCreateBulkMentees} disabled={isCreating}>
+                      {isCreating ? "Creating..." : `Create ${csvData.filter(m => m.isValid).length} Mentee(s)`}
+                    </Button>
+                  )}
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
         </div>
 
+        {/* Progress Dialog */}
+        <Dialog open={showProgressDialog} onOpenChange={() => {}}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Creating Mentees</DialogTitle>
+              <DialogDescription>
+                Please wait while we create the mentee accounts...
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Progress</span>
+                  <span>{creationProgress.current} of {creationProgress.total}</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div 
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                    style={{ width: `${(creationProgress.current / creationProgress.total) * 100}%` }}
+                  ></div>
+                </div>
+              </div>
+              {currentStep && (
+                <div className="text-sm text-gray-600">
+                  {currentStep}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
           </div>
         ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {mentees.map((mentee) => (
-              <Card key={mentee.uid} className="hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">{mentee.firstName} {mentee.lastName}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {mentee.email} • {mentee.enrollmentNo}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleEditMentee(mentee)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Class:</span>
-                      <span>{mentee.className}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Stream:</span>
-                      <span>{mentee.stream}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Mentor:</span>
-                      <span>{mentee.assignedMentorName || "Not assigned"}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Roll No:</span>
-                      <span>{mentee.classRollNo}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                All Mentees ({mentees.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Enrollment No</TableHead>
+                      <TableHead>Class</TableHead>
+                      <TableHead>Mentor</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {mentees.map((mentee) => (
+                      <TableRow key={mentee.uid}>
+                        <TableCell>
+                          {mentee.firstName} {mentee.middleName} {mentee.lastName}
+                        </TableCell>
+                        <TableCell>{mentee.email}</TableCell>
+                        <TableCell>{mentee.enrollmentNo}</TableCell>
+                        <TableCell>{mentee.className}</TableCell>
+                        <TableCell>{mentee.assignedMentorName || 'Not assigned'}</TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button variant="outline" size="sm">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" className="text-red-600">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
         )}
-
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Edit Mentee</DialogTitle>
-              <DialogDescription>
-                Update mentee information.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-firstName">First Name *</Label>
-                  <Input
-                    id="edit-firstName"
-                    value={newMentee.firstName}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, firstName: e.target.value }))}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-middleName">Middle Name</Label>
-                  <Input
-                    id="edit-middleName"
-                    value={newMentee.middleName}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, middleName: e.target.value }))}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-lastName">Last Name *</Label>
-                  <Input
-                    id="edit-lastName"
-                    value={newMentee.lastName}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, lastName: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-enrollmentNo">Enrollment No *</Label>
-                  <Input
-                    id="edit-enrollmentNo"
-                    value={newMentee.enrollmentNo}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, enrollmentNo: e.target.value }))}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-registrationNo">Registration No *</Label>
-                  <Input
-                    id="edit-registrationNo"
-                    value={newMentee.registrationNo}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, registrationNo: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-parentsName">Parents Name *</Label>
-                  <Input
-                    id="edit-parentsName"
-                    value={newMentee.parentsName}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, parentsName: e.target.value }))}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-parentsContact">Parents Contact *</Label>
-                  <Input
-                    id="edit-parentsContact"
-                    value={newMentee.parentsContact}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, parentsContact: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-classId">Class *</Label>
-                  <Select value={newMentee.classId} onValueChange={(value) => setNewMentee(prev => ({ ...prev, classId: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select class" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls.id} value={cls.id}>
-                          {cls.name} - {cls.stream} ({cls.year})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-assignedMentorId">Assign to Mentor</Label>
-                  <Select value={newMentee.assignedMentorId} onValueChange={(value) => setNewMentee(prev => ({ ...prev, assignedMentorId: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select mentor (optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {mentors.map((mentor) => (
-                        <SelectItem key={mentor.id} value={mentor.id}>
-                          {mentor.name} ({mentor.mentorId})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-admissionBatch">Admission Batch *</Label>
-                  <Input
-                    id="edit-admissionBatch"
-                    value={newMentee.admissionBatch}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, admissionBatch: e.target.value }))}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-classRollNo">Class Roll No *</Label>
-                  <Input
-                    id="edit-classRollNo"
-                    value={newMentee.classRollNo}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, classRollNo: e.target.value }))}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-dob">Date of Birth *</Label>
-                  <Input
-                    id="edit-dob"
-                    type="date"
-                    value={newMentee.dob}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, dob: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-section">Section *</Label>
-                  <Input
-                    id="edit-section"
-                    value={newMentee.section}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, section: e.target.value }))}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="edit-stream">Stream *</Label>
-                  <Input
-                    id="edit-stream"
-                    value={newMentee.stream}
-                    onChange={(e) => setNewMentee(prev => ({ ...prev, stream: e.target.value }))}
-                  />
-                </div>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleUpdateMentee} disabled={isCreating}>
-                {isCreating ? "Updating..." : "Update Mentee"}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </div>
     </DashboardLayout>
   )
-} 
+}

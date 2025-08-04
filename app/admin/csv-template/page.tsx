@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { collection, getDocs } from "firebase/firestore"
+import { db } from "@/lib/firebase"
 import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Download, FileText, Upload, Users2, Info, Plus, Trash2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
@@ -29,12 +32,14 @@ interface MenteeData {
   parentsName: string
   parentsContact: string
   className: string
+  classId: string
   admissionBatch: string
   classRollNo: string
   dob: string
   section: string
   stream: string
   assignedMentorName: string
+  assignedMentorId: string
 }
 
 interface MentorData {
@@ -46,10 +51,30 @@ interface MentorData {
   qualification: string
 }
 
+interface ClassInfo {
+  id: string
+  name: string
+  year: string
+  section: string
+  stream: string
+}
+
+interface MentorInfo {
+  id: string
+  name: string
+  email: string
+  mentorId: string
+}
+
 export default function CsvTemplatePage() {
   const { userData } = useAuth()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState("mentee")
+  const [loading, setLoading] = useState(true)
+
+  // Available options from database
+  const [availableClasses, setAvailableClasses] = useState<ClassInfo[]>([])
+  const [availableMentors, setAvailableMentors] = useState<MentorInfo[]>([])
 
   // Class form state
   const [classes, setClasses] = useState<ClassData[]>([])
@@ -72,12 +97,14 @@ export default function CsvTemplatePage() {
     parentsName: "",
     parentsContact: "",
     className: "",
+    classId: "",
     admissionBatch: "",
     classRollNo: "",
     dob: "",
     section: "",
     stream: "",
-    assignedMentorName: ""
+    assignedMentorName: "",
+    assignedMentorId: ""
   })
 
   // Mentor form state
@@ -90,6 +117,60 @@ export default function CsvTemplatePage() {
     department: "",
     qualification: ""
   })
+
+  // Fetch available classes and mentors from database
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!userData) return
+
+      try {
+        // Fetch classes
+        const classesRef = collection(db, "classes")
+        const classesSnapshot = await getDocs(classesRef)
+        const classesData: ClassInfo[] = []
+        classesSnapshot.forEach((doc) => {
+          const data = doc.data()
+          classesData.push({
+            id: doc.id,
+            name: data.name || "",
+            year: data.year || "",
+            section: data.section || "",
+            stream: data.stream || ""
+          })
+        })
+        setAvailableClasses(classesData)
+
+        // Fetch mentors
+        const mentorsRef = collection(db, "mentors")
+        const mentorsSnapshot = await getDocs(mentorsRef)
+        const mentorsData: MentorInfo[] = []
+        mentorsSnapshot.forEach((doc) => {
+          const data = doc.data()
+          mentorsData.push({
+            id: doc.id,
+            name: data.name || "",
+            email: data.email || "",
+            mentorId: data.mentorId || ""
+          })
+        })
+        setAvailableMentors(mentorsData)
+
+      } catch (error) {
+        console.error("Error fetching data:", error)
+        toast({
+          title: "Error",
+          description: "Failed to load classes and mentors",
+          variant: "destructive"
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (userData && userData.role === "admin") {
+      fetchData()
+    }
+  }, [userData, toast])
 
   // Add class to list
   const addClass = () => {
@@ -109,12 +190,44 @@ export default function CsvTemplatePage() {
     })
   }
 
+  // Handle class selection
+  const handleClassSelection = (classId: string) => {
+    const selectedClass = availableClasses.find(cls => cls.id === classId)
+    if (selectedClass) {
+      setNewMentee({
+        ...newMentee,
+        classId: classId,
+        className: selectedClass.name,
+        section: selectedClass.section,
+        stream: selectedClass.stream
+      })
+    }
+  }
+
+  // Handle mentor selection
+  const handleMentorSelection = (mentorId: string) => {
+    const selectedMentor = availableMentors.find(mentor => mentor.id === mentorId)
+    if (selectedMentor) {
+      setNewMentee({
+        ...newMentee,
+        assignedMentorId: mentorId,
+        assignedMentorName: selectedMentor.name
+      })
+    } else if (mentorId === "none") {
+      setNewMentee({
+        ...newMentee,
+        assignedMentorId: "",
+        assignedMentorName: ""
+      })
+    }
+  }
+
   // Add mentee to list
   const addMentee = () => {
-    if (!newMentee.firstName || !newMentee.lastName || !newMentee.email || 
-        !newMentee.enrollmentNo || !newMentee.registrationNo || !newMentee.parentsName || 
-        !newMentee.parentsContact || !newMentee.className || !newMentee.admissionBatch || 
-        !newMentee.classRollNo || !newMentee.dob || !newMentee.section || !newMentee.stream) {
+    if (!newMentee.firstName || !newMentee.lastName || !newMentee.email ||
+      !newMentee.enrollmentNo || !newMentee.registrationNo || !newMentee.parentsName ||
+      !newMentee.parentsContact || !newMentee.classId || !newMentee.admissionBatch ||
+      !newMentee.classRollNo || !newMentee.dob) {
       toast({
         title: "Error",
         description: "Please fill all required fields",
@@ -133,12 +246,14 @@ export default function CsvTemplatePage() {
       parentsName: "",
       parentsContact: "",
       className: "",
+      classId: "",
       admissionBatch: "",
       classRollNo: "",
       dob: "",
       section: "",
       stream: "",
-      assignedMentorName: ""
+      assignedMentorName: "",
+      assignedMentorId: ""
     })
     toast({
       title: "Success",
@@ -148,8 +263,8 @@ export default function CsvTemplatePage() {
 
   // Add mentor to list
   const addMentor = () => {
-    if (!newMentor.name || !newMentor.email || !newMentor.mentorId || 
-        !newMentor.phone || !newMentor.department || !newMentor.qualification) {
+    if (!newMentor.name || !newMentor.email || !newMentor.mentorId ||
+      !newMentor.phone || !newMentor.department || !newMentor.qualification) {
       toast({
         title: "Error",
         description: "Please fill all required fields",
@@ -209,7 +324,7 @@ export default function CsvTemplatePage() {
     a.download = 'classes.csv'
     a.click()
     window.URL.revokeObjectURL(url)
-    
+
     toast({
       title: "Success",
       description: "Classes CSV downloaded successfully!",
@@ -227,8 +342,8 @@ export default function CsvTemplatePage() {
     }
 
     const headers = [
-      'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo', 
-      'registrationNo', 'parentsName', 'parentsContact', 'className', 
+      'firstName', 'lastName', 'middleName', 'email', 'enrollmentNo',
+      'registrationNo', 'parentsName', 'parentsContact', 'className',
       'admissionBatch', 'classRollNo', 'dob', 'section', 'stream', 'assignedMentorName'
     ]
     const csvContent = [
@@ -248,7 +363,7 @@ export default function CsvTemplatePage() {
     a.download = 'mentees.csv'
     a.click()
     window.URL.revokeObjectURL(url)
-    
+
     toast({
       title: "Success",
       description: "Mentees CSV downloaded successfully!",
@@ -281,7 +396,7 @@ export default function CsvTemplatePage() {
     a.download = 'mentors.csv'
     a.click()
     window.URL.revokeObjectURL(url)
-    
+
     toast({
       title: "Success",
       description: "Mentors CSV downloaded successfully!",
@@ -310,176 +425,207 @@ export default function CsvTemplatePage() {
           {/* Mentee CSV Creator */}
           <TabsContent value="mentee" className="space-y-6">
             <Card>
-            <CardHeader>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users2 className="h-5 w-5" />
                   Create Mentee CSV
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-6">
-                {/* Add Mentee Form */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="firstName">First Name *</Label>
-                    <Input
-                      id="firstName"
-                      value={newMentee.firstName}
-                      onChange={(e) => setNewMentee({...newMentee, firstName: e.target.value})}
-                    />
+                {loading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+                    <span className="ml-2">Loading classes and mentors...</span>
                   </div>
-                  <div>
-                    <Label htmlFor="middleName">Middle Name</Label>
-                    <Input
-                      id="middleName"
-                      value={newMentee.middleName}
-                      onChange={(e) => setNewMentee({...newMentee, middleName: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="lastName">Last Name *</Label>
-                    <Input
-                      id="lastName"
-                      value={newMentee.lastName}
-                      onChange={(e) => setNewMentee({...newMentee, lastName: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={newMentee.email}
-                      onChange={(e) => setNewMentee({...newMentee, email: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="enrollmentNo">Enrollment No *</Label>
-                    <Input
-                      id="enrollmentNo"
-                      value={newMentee.enrollmentNo}
-                      onChange={(e) => setNewMentee({...newMentee, enrollmentNo: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="registrationNo">Registration No *</Label>
-                    <Input
-                      id="registrationNo"
-                      value={newMentee.registrationNo}
-                      onChange={(e) => setNewMentee({...newMentee, registrationNo: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="parentsName">Parents Name *</Label>
-                    <Input
-                      id="parentsName"
-                      value={newMentee.parentsName}
-                      onChange={(e) => setNewMentee({...newMentee, parentsName: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="parentsContact">Parents Contact *</Label>
-                    <Input
-                      id="parentsContact"
-                      value={newMentee.parentsContact}
-                      onChange={(e) => setNewMentee({...newMentee, parentsContact: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="className">Class Name *</Label>
-                    <Input
-                      id="className"
-                      value={newMentee.className}
-                      onChange={(e) => setNewMentee({...newMentee, className: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="admissionBatch">Admission Batch *</Label>
-                    <Input
-                      id="admissionBatch"
-                      value={newMentee.admissionBatch}
-                      onChange={(e) => setNewMentee({...newMentee, admissionBatch: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="classRollNo">Class Roll No *</Label>
-                    <Input
-                      id="classRollNo"
-                      value={newMentee.classRollNo}
-                      onChange={(e) => setNewMentee({...newMentee, classRollNo: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="dob">Date of Birth *</Label>
-                    <Input
-                      id="dob"
-                      type="date"
-                      value={newMentee.dob}
-                      onChange={(e) => setNewMentee({...newMentee, dob: e.target.value})}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="section">Section *</Label>
-                    <Input
-                      id="section"
-                      value={newMentee.section}
-                      onChange={(e) => setNewMentee({...newMentee, section: e.target.value})}
-                    />
-                </div>
-                <div>
-                    <Label htmlFor="stream">Stream *</Label>
-                    <Input
-                      id="stream"
-                      value={newMentee.stream}
-                      onChange={(e) => setNewMentee({...newMentee, stream: e.target.value})}
-                    />
-                </div>
-                  <div>
-                    <Label htmlFor="assignedMentorName">Assigned Mentor</Label>
-                    <Input
-                      id="assignedMentorName"
-                      value={newMentee.assignedMentorName}
-                      onChange={(e) => setNewMentee({...newMentee, assignedMentorName: e.target.value})}
-                    />
-              </div>
-                </div>
-
-                <Button onClick={addMentee} className="w-full">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Mentee to List
-                </Button>
-
-                {/* Mentee List */}
-                {mentees.length > 0 && (
-                  <div className="space-y-4">
-                    <h3 className="text-lg font-semibold">Mentees in List ({mentees.length})</h3>
-                    <div className="grid gap-2">
-                      {mentees.map((mentee, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <span>{mentee.firstName} {mentee.lastName} - {mentee.email}</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => removeMentee(index)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
+                ) : (
+                  <>
+                    {/* Add Mentee Form */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label htmlFor="firstName">First Name *</Label>
+                        <Input
+                          id="firstName"
+                          value={newMentee.firstName}
+                          onChange={(e) => setNewMentee({ ...newMentee, firstName: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="middleName">Middle Name</Label>
+                        <Input
+                          id="middleName"
+                          value={newMentee.middleName}
+                          onChange={(e) => setNewMentee({ ...newMentee, middleName: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="lastName">Last Name *</Label>
+                        <Input
+                          id="lastName"
+                          value={newMentee.lastName}
+                          onChange={(e) => setNewMentee({ ...newMentee, lastName: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="email">Email *</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          value={newMentee.email}
+                          onChange={(e) => setNewMentee({ ...newMentee, email: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="enrollmentNo">Enrollment No *</Label>
+                        <Input
+                          id="enrollmentNo"
+                          value={newMentee.enrollmentNo}
+                          onChange={(e) => setNewMentee({ ...newMentee, enrollmentNo: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="registrationNo">Registration No *</Label>
+                        <Input
+                          id="registrationNo"
+                          value={newMentee.registrationNo}
+                          onChange={(e) => setNewMentee({ ...newMentee, registrationNo: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="parentsName">Parents Name *</Label>
+                        <Input
+                          id="parentsName"
+                          value={newMentee.parentsName}
+                          onChange={(e) => setNewMentee({ ...newMentee, parentsName: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="parentsContact">Parents Contact *</Label>
+                        <Input
+                          id="parentsContact"
+                          value={newMentee.parentsContact}
+                          onChange={(e) => setNewMentee({ ...newMentee, parentsContact: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="classId">Select Class *</Label>
+                        <Select value={newMentee.classId} onValueChange={handleClassSelection}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a class" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableClasses.map((cls) => (
+                              <SelectItem key={cls.id} value={cls.id}>
+                                {cls.name} - {cls.stream} ({cls.year}, Section {cls.section})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label htmlFor="admissionBatch">Admission Batch *</Label>
+                        <Input
+                          id="admissionBatch"
+                          value={newMentee.admissionBatch}
+                          onChange={(e) => setNewMentee({ ...newMentee, admissionBatch: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="classRollNo">Class Roll No *</Label>
+                        <Input
+                          id="classRollNo"
+                          value={newMentee.classRollNo}
+                          onChange={(e) => setNewMentee({ ...newMentee, classRollNo: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="dob">Date of Birth *</Label>
+                        <Input
+                          id="dob"
+                          type="date"
+                          value={newMentee.dob}
+                          onChange={(e) => setNewMentee({ ...newMentee, dob: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="section">Section (Auto-filled)</Label>
+                        <Input
+                          id="section"
+                          value={newMentee.section}
+                          disabled
+                          placeholder="Will be filled when class is selected"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="stream">Stream (Auto-filled)</Label>
+                        <Input
+                          id="stream"
+                          value={newMentee.stream}
+                          disabled
+                          placeholder="Will be filled when class is selected"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="assignedMentorId">Assign Mentor (Optional)</Label>
+                        <Select value={newMentee.assignedMentorId} onValueChange={handleMentorSelection}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select a mentor (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No Mentor Assigned</SelectItem>
+                            {availableMentors.map((mentor) => (
+                              <SelectItem key={mentor.id} value={mentor.id}>
+                                {mentor.name} ({mentor.mentorId})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <Button onClick={downloadMenteeCsv} className="w-full">
-                      <Download className="h-4 w-4 mr-2" />
-                      Download Mentees CSV
-                </Button>
-              </div>
+
+                    <Button onClick={addMentee} className="w-full" disabled={loading}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Mentee to List
+                    </Button>
+
+                    {/* Mentee List */}
+                    {mentees.length > 0 && (
+                      <div className="space-y-4">
+                        <h3 className="text-lg font-semibold">Mentees in List ({mentees.length})</h3>
+                        <div className="grid gap-2">
+                          {mentees.map((mentee, index) => (
+                            <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div className="flex-1">
+                                <div className="font-medium">{mentee.firstName} {mentee.lastName} - {mentee.email}</div>
+                                <div className="text-sm text-gray-500">
+                                  Class: {mentee.className} | Mentor: {mentee.assignedMentorName || "Not assigned"}
+                                </div>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeMentee(index)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                        <Button onClick={downloadMenteeCsv} className="w-full">
+                          <Download className="h-4 w-4 mr-2" />
+                          Download Mentees CSV
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Class CSV Creator */}
           <TabsContent value="class" className="space-y-6">
             <Card>
-            <CardHeader>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
                   Create Class CSV
@@ -493,7 +639,7 @@ export default function CsvTemplatePage() {
                     <Input
                       id="className"
                       value={newClass.name}
-                      onChange={(e) => setNewClass({...newClass, name: e.target.value})}
+                      onChange={(e) => setNewClass({ ...newClass, name: e.target.value })}
                     />
                   </div>
                   <div>
@@ -501,25 +647,25 @@ export default function CsvTemplatePage() {
                     <Input
                       id="classYear"
                       value={newClass.year}
-                      onChange={(e) => setNewClass({...newClass, year: e.target.value})}
+                      onChange={(e) => setNewClass({ ...newClass, year: e.target.value })}
                     />
-                </div>
-                <div>
+                  </div>
+                  <div>
                     <Label htmlFor="classSection">Section *</Label>
                     <Input
                       id="classSection"
                       value={newClass.section}
-                      onChange={(e) => setNewClass({...newClass, section: e.target.value})}
+                      onChange={(e) => setNewClass({ ...newClass, section: e.target.value })}
                     />
-                </div>
+                  </div>
                   <div>
                     <Label htmlFor="classStream">Stream *</Label>
                     <Input
                       id="classStream"
                       value={newClass.stream}
-                      onChange={(e) => setNewClass({...newClass, stream: e.target.value})}
+                      onChange={(e) => setNewClass({ ...newClass, stream: e.target.value })}
                     />
-              </div>
+                  </div>
                 </div>
 
                 <Button onClick={addClass} className="w-full">
@@ -548,17 +694,17 @@ export default function CsvTemplatePage() {
                     <Button onClick={downloadClassCsv} className="w-full">
                       <Download className="h-4 w-4 mr-2" />
                       Download Classes CSV
-                </Button>
-              </div>
+                    </Button>
+                  </div>
                 )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Mentor CSV Creator */}
           <TabsContent value="mentor" className="space-y-6">
             <Card>
-            <CardHeader>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Users2 className="h-5 w-5" />
                   Create Mentor CSV
@@ -572,7 +718,7 @@ export default function CsvTemplatePage() {
                     <Input
                       id="mentorName"
                       value={newMentor.name}
-                      onChange={(e) => setNewMentor({...newMentor, name: e.target.value})}
+                      onChange={(e) => setNewMentor({ ...newMentor, name: e.target.value })}
                     />
                   </div>
                   <div>
@@ -581,7 +727,7 @@ export default function CsvTemplatePage() {
                       id="mentorEmail"
                       type="email"
                       value={newMentor.email}
-                      onChange={(e) => setNewMentor({...newMentor, email: e.target.value})}
+                      onChange={(e) => setNewMentor({ ...newMentor, email: e.target.value })}
                     />
                   </div>
                   <div>
@@ -589,7 +735,7 @@ export default function CsvTemplatePage() {
                     <Input
                       id="mentorId"
                       value={newMentor.mentorId}
-                      onChange={(e) => setNewMentor({...newMentor, mentorId: e.target.value})}
+                      onChange={(e) => setNewMentor({ ...newMentor, mentorId: e.target.value })}
                     />
                   </div>
                   <div>
@@ -597,25 +743,25 @@ export default function CsvTemplatePage() {
                     <Input
                       id="mentorPhone"
                       value={newMentor.phone}
-                      onChange={(e) => setNewMentor({...newMentor, phone: e.target.value})}
+                      onChange={(e) => setNewMentor({ ...newMentor, phone: e.target.value })}
                     />
-                </div>
-                <div>
+                  </div>
+                  <div>
                     <Label htmlFor="mentorDepartment">Department *</Label>
                     <Input
                       id="mentorDepartment"
                       value={newMentor.department}
-                      onChange={(e) => setNewMentor({...newMentor, department: e.target.value})}
+                      onChange={(e) => setNewMentor({ ...newMentor, department: e.target.value })}
                     />
-                </div>
+                  </div>
                   <div>
                     <Label htmlFor="mentorQualification">Qualification *</Label>
                     <Input
                       id="mentorQualification"
                       value={newMentor.qualification}
-                      onChange={(e) => setNewMentor({...newMentor, qualification: e.target.value})}
+                      onChange={(e) => setNewMentor({ ...newMentor, qualification: e.target.value })}
                     />
-              </div>
+                  </div>
                 </div>
 
                 <Button onClick={addMentor} className="w-full">
@@ -644,11 +790,11 @@ export default function CsvTemplatePage() {
                     <Button onClick={downloadMentorCsv} className="w-full">
                       <Download className="h-4 w-4 mr-2" />
                       Download Mentors CSV
-                </Button>
-              </div>
+                    </Button>
+                  </div>
                 )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
 
@@ -683,10 +829,11 @@ export default function CsvTemplatePage() {
                 <ul className="list-disc list-inside space-y-1 text-yellow-700 text-xs">
                   <li>All required fields must be filled before adding to list</li>
                   <li>Email addresses must be unique and valid</li>
-                  <li>For mentees, ensure the className matches exactly with existing classes</li>
-                  <li>For mentees, ensure the assignedMentorName matches exactly with existing mentors</li>
+                  <li>For mentees, select class from dropdown - section and stream will auto-fill</li>
+                  <li>For mentees, select mentor from dropdown or leave unassigned</li>
                   <li>Dates should be in YYYY-MM-DD format</li>
                   <li>You can remove items from the list before downloading</li>
+                  <li>Classes and mentors are loaded from your database automatically</li>
                 </ul>
               </div>
             </div>
