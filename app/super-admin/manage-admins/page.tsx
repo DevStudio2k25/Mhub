@@ -53,6 +53,7 @@ export default function ManageAdmins() {
   const [bulkAdmins, setBulkAdmins] = useState<Array<{
     firstName: string;
     lastName: string;
+    middleName: string;
     email: string;
     password: string;
     id: string;
@@ -365,6 +366,7 @@ export default function ManageAdmins() {
       id: newId,
       firstName: "",
       lastName: "",
+      middleName: "",
       email: "",
       password: generateRandomPassword()
     }])
@@ -464,6 +466,7 @@ export default function ManageAdmins() {
           adminData: {
             firstName: newAdmin.firstName,
             lastName: newAdmin.lastName,
+            middleName: newAdmin.middleName,
             adminId: adminId,
             email: newAdmin.email,
             password: newAdmin.password
@@ -514,7 +517,7 @@ export default function ManageAdmins() {
   const handleCreateBulkAdmins = async () => {
     console.log("🚀 Starting bulk admin creation via API...");
     console.log("📊 Total admins to create:", bulkAdmins.length);
-    console.log("📝 Admin list:", bulkAdmins.map(admin => ({ firstName: admin.firstName, lastName: admin.lastName, email: admin.email })));
+    console.log("📝 Admin list:", bulkAdmins.map(admin => ({ firstName: admin.firstName, middleName: admin.middleName, lastName: admin.lastName, email: admin.email })));
 
     // Validate all admins
     const invalidAdmins = bulkAdmins.filter(admin => !admin.firstName || !admin.lastName || !admin.email || !admin.password)
@@ -577,12 +580,13 @@ export default function ManageAdmins() {
         adminsData.push({
           firstName: admin.firstName,
           lastName: admin.lastName,
+          middleName: admin.middleName,
           adminId: adminId,
           email: admin.email,
           password: admin.password
         })
       }
-      console.log("✅ Generated admin IDs:", adminsData.map(a => ({ name: `${a.firstName} ${a.lastName}`, id: a.adminId })))
+      console.log("✅ Generated admin IDs:", adminsData.map(a => ({ name: `${a.firstName} ${a.middleName} ${a.lastName}`.trim(), id: a.adminId })))
 
       // Set initial progress
       setCreationProgress({ current: 0, total: bulkAdmins.length });
@@ -1056,13 +1060,21 @@ export default function ManageAdmins() {
                                 <X className="h-4 w-4" />
                               </Button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                               <div>
                                 <Label className="text-xs">First Name</Label>
                                 <Input
                                   value={admin.firstName}
                                   onChange={(e) => updateBulkAdmin(admin.id, 'firstName', e.target.value)}
                                   placeholder="First name"
+                                />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Middle Name</Label>
+                                <Input
+                                  value={admin.middleName}
+                                  onChange={(e) => updateBulkAdmin(admin.id, 'middleName', e.target.value)}
+                                  placeholder="Middle name"
                                 />
                               </div>
                               <div>
