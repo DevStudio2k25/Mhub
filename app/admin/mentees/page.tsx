@@ -345,7 +345,7 @@ export default function AdminMentees() {
     }
   }
 
-  // Handle single mentee creation
+  // Handle single mentee creation via API
   const handleCreateSingleMentee = async () => {
     if (!newMentee.firstName || !newMentee.lastName || !newMentee.email || !newMentee.password ||
         !newMentee.enrollmentNo || !newMentee.registrationNo || !newMentee.parentsName || 
@@ -364,67 +364,65 @@ export default function AdminMentees() {
     setIsCreating(true)
 
     try {
-      // Store current admin credentials
-      const adminEmail = auth.currentUser?.email
-      const adminUid = auth.currentUser?.uid
-
-      // Validate admin password
-      if (adminEmail) {
-        await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
-      }
-
-      // Create mentee account in Firebase Auth
-      const menteeCredential = await createUserWithEmailAndPassword(auth, newMentee.email, newMentee.password)
-      const menteeUser = menteeCredential.user
-
       // Get class details
       const selectedClass = classes.find(cls => cls.id === newMentee.classId)
-      const fullName = newMentee.middleName 
-        ? `${newMentee.firstName} ${newMentee.middleName} ${newMentee.lastName}`
-        : `${newMentee.firstName} ${newMentee.lastName}`
+      if (!selectedClass) {
+        throw new Error("Selected class not found")
+      }
 
-      // Create mentee document in Firestore
+      // Prepare mentee data for API
       const menteeData = {
-        uid: menteeUser.uid,
         firstName: newMentee.firstName,
         lastName: newMentee.lastName,
         middleName: newMentee.middleName || "",
-        name: fullName,
-        email: menteeUser.email,
+        email: newMentee.email,
         password: newMentee.password,
-        role: "mentee",
         enrollmentNo: newMentee.enrollmentNo,
         registrationNo: newMentee.registrationNo,
         parentsName: newMentee.parentsName,
         parentsContact: newMentee.parentsContact,
         classId: newMentee.classId,
-        className: selectedClass?.name || "",
+        className: selectedClass.name,
         admissionBatch: newMentee.admissionBatch,
         classRollNo: newMentee.classRollNo,
         dob: newMentee.dob,
-        section: selectedClass?.section || "",
-        stream: selectedClass?.stream || "",
+        section: selectedClass.section,
+        stream: selectedClass.stream,
         assignedMentorId: newMentee.assignedMentorId || "",
-        assignedMentorName: mentors.find(m => m.id === newMentee.assignedMentorId)?.name || "",
-        createdBy: adminUid,
-        createdAt: new Date(),
+        assignedMentorName: mentors.find(m => m.id === newMentee.assignedMentorId)?.name || ""
       }
 
-      await addDoc(collection(db, "mentees"), menteeData)
+      // Call API to create mentee
+      const response = await fetch('/api/create-mentees', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mentees: [menteeData],
+          adminUid: userData?.uid,
+          adminPassword: adminPassword
+        })
+      })
 
-      // Sign out mentee and sign back in as admin
-      await signOut(auth)
-      if (adminEmail) {
-        await signInWithEmailAndPassword(auth, adminEmail, adminPassword)
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to create mentee')
+      }
+
+      if (result.errors && result.errors.length > 0) {
+        throw new Error(result.errors[0].error)
       }
 
       // Add to local state
+      const createdMentee = result.results[0]
       setMentees(prev => [{
-        uid: menteeUser.uid,
+        uid: createdMentee.uid,
         firstName: newMentee.firstName,
         lastName: newMentee.lastName,
         middleName: newMentee.middleName || "",
-        email: menteeUser.email || "",
+        email: newMentee.email,
         password: newMentee.password,
         role: "mentee",
         enrollmentNo: newMentee.enrollmentNo,
@@ -432,12 +430,12 @@ export default function AdminMentees() {
         parentsName: newMentee.parentsName,
         parentsContact: newMentee.parentsContact,
         classId: newMentee.classId,
-        className: selectedClass?.name || "",
+        className: selectedClass.name,
         admissionBatch: newMentee.admissionBatch,
         classRollNo: newMentee.classRollNo,
         dob: newMentee.dob,
-        section: selectedClass?.section || "",
-        stream: selectedClass?.stream || "",
+        section: selectedClass.section,
+        stream: selectedClass.stream,
         assignedMentorId: newMentee.assignedMentorId || "",
         assignedMentorName: mentors.find(m => m.id === newMentee.assignedMentorId)?.name || "",
         createdAt: new Date()
