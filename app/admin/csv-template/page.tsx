@@ -43,12 +43,11 @@ interface MenteeData {
 }
 
 interface MentorData {
-  name: string
+  firstName: string
+  lastName: string
+  middleName: string
   email: string
-  mentorId: string
-  phone: string
-  department: string
-  qualification: string
+  mobile: string
 }
 
 interface ClassInfo {
@@ -61,7 +60,9 @@ interface ClassInfo {
 
 interface MentorInfo {
   id: string
-  name: string
+  firstName: string
+  lastName: string
+  middleName?: string
   email: string
   mentorId: string
 }
@@ -110,12 +111,11 @@ export default function CsvTemplatePage() {
   // Mentor form state
   const [mentors, setMentors] = useState<MentorData[]>([])
   const [newMentor, setNewMentor] = useState<MentorData>({
-    name: "",
+    firstName: "",
+    lastName: "",
+    middleName: "",
     email: "",
-    mentorId: "",
-    phone: "",
-    department: "",
-    qualification: ""
+    mobile: ""
   })
 
   // Fetch available classes and mentors from database
@@ -148,7 +148,9 @@ export default function CsvTemplatePage() {
           const data = doc.data()
           mentorsData.push({
             id: doc.id,
-            name: data.name || "",
+            firstName: data.firstName || data.name || "",
+            lastName: data.lastName || "",
+            middleName: data.middleName || "",
             email: data.email || "",
             mentorId: data.mentorId || ""
           })
@@ -211,7 +213,7 @@ export default function CsvTemplatePage() {
       setNewMentee({
         ...newMentee,
         assignedMentorId: mentorId,
-        assignedMentorName: selectedMentor.name
+        assignedMentorName: `${selectedMentor.firstName} ${selectedMentor.middleName} ${selectedMentor.lastName}`.trim()
       })
     } else if (mentorId === "none") {
       setNewMentee({
@@ -263,8 +265,7 @@ export default function CsvTemplatePage() {
 
   // Add mentor to list
   const addMentor = () => {
-    if (!newMentor.name || !newMentor.email || !newMentor.mentorId ||
-      !newMentor.phone || !newMentor.department || !newMentor.qualification) {
+    if (!newMentor.firstName || !newMentor.lastName || !newMentor.email || !newMentor.mobile) {
       toast({
         title: "Error",
         description: "Please fill all required fields",
@@ -274,12 +275,11 @@ export default function CsvTemplatePage() {
     }
     setMentors([...mentors, newMentor])
     setNewMentor({
-      name: "",
+      firstName: "",
+      lastName: "",
+      middleName: "",
       email: "",
-      mentorId: "",
-      phone: "",
-      department: "",
-      qualification: ""
+      mobile: ""
     })
     toast({
       title: "Success",
@@ -380,13 +380,10 @@ export default function CsvTemplatePage() {
       return
     }
 
-    const headers = ['name', 'email', 'mentorId', 'phone', 'department', 'qualification']
+    const headers = ['firstName', 'lastName', 'middleName', 'email', 'mobile']
     const csvContent = [
       headers.join(','),
-      ...mentors.map(mentor => [
-        mentor.name, mentor.email, mentor.mentorId, mentor.phone,
-        mentor.department, mentor.qualification
-      ].join(','))
+      ...mentors.map(mentor => [mentor.firstName, mentor.lastName, mentor.middleName, mentor.email, mentor.mobile].join(','))
     ].join('\n')
 
     const blob = new Blob([csvContent], { type: 'text/csv' })
@@ -574,7 +571,7 @@ export default function CsvTemplatePage() {
                             <SelectItem value="none">No Mentor Assigned</SelectItem>
                             {availableMentors.map((mentor) => (
                               <SelectItem key={mentor.id} value={mentor.id}>
-                                {mentor.name} ({mentor.mentorId})
+                                {mentor.firstName} {mentor.middleName} {mentor.lastName} ({mentor.mentorId})
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -713,56 +710,60 @@ export default function CsvTemplatePage() {
               <CardContent className="space-y-6">
                 {/* Add Mentor Form */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="mentorName">Name *</Label>
-                    <Input
-                      id="mentorName"
-                      value={newMentor.name}
-                      onChange={(e) => setNewMentor({ ...newMentor, name: e.target.value })}
-                    />
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="mentorFirstName">First Name *</Label>
+                      <Input
+                        id="mentorFirstName"
+                        value={newMentor.firstName}
+                        onChange={(e) => setNewMentor({ ...newMentor, firstName: e.target.value })}
+                        placeholder="First name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="mentorMiddleName">Middle Name</Label>
+                      <Input
+                        id="mentorMiddleName"
+                        value={newMentor.middleName}
+                        onChange={(e) => setNewMentor({ ...newMentor, middleName: e.target.value })}
+                        placeholder="Middle name"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="mentorLastName">Last Name *</Label>
+                      <Input
+                        id="mentorLastName"
+                        value={newMentor.lastName}
+                        onChange={(e) => setNewMentor({ ...newMentor, lastName: e.target.value })}
+                        placeholder="Last name"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="mentorEmail">Email *</Label>
-                    <Input
-                      id="mentorEmail"
-                      type="email"
-                      value={newMentor.email}
-                      onChange={(e) => setNewMentor({ ...newMentor, email: e.target.value })}
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="mentorEmail">Email *</Label>
+                      <Input
+                        id="mentorEmail"
+                        type="email"
+                        value={newMentor.email}
+                        onChange={(e) => setNewMentor({ ...newMentor, email: e.target.value })}
+                        placeholder="Enter email"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="mentorMobile">Mobile *</Label>
+                      <Input
+                        id="mentorMobile"
+                        type="tel"
+                        value={newMentor.mobile}
+                        onChange={(e) => setNewMentor({ ...newMentor, mobile: e.target.value })}
+                        placeholder="+91-9876543210"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="mentorId">Mentor ID *</Label>
-                    <Input
-                      id="mentorId"
-                      value={newMentor.mentorId}
-                      onChange={(e) => setNewMentor({ ...newMentor, mentorId: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="mentorPhone">Phone *</Label>
-                    <Input
-                      id="mentorPhone"
-                      value={newMentor.phone}
-                      onChange={(e) => setNewMentor({ ...newMentor, phone: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="mentorDepartment">Department *</Label>
-                    <Input
-                      id="mentorDepartment"
-                      value={newMentor.department}
-                      onChange={(e) => setNewMentor({ ...newMentor, department: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="mentorQualification">Qualification *</Label>
-                    <Input
-                      id="mentorQualification"
-                      value={newMentor.qualification}
-                      onChange={(e) => setNewMentor({ ...newMentor, qualification: e.target.value })}
-                    />
-                  </div>
+                  
                 </div>
+                 
 
                 <Button onClick={addMentor} className="w-full">
                   <Plus className="h-4 w-4 mr-2" />
@@ -776,7 +777,7 @@ export default function CsvTemplatePage() {
                     <div className="grid gap-2">
                       {mentors.map((mentor, index) => (
                         <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                          <span>{mentor.name} - {mentor.email} ({mentor.mentorId})</span>
+                          <span>{mentor.firstName} {mentor.middleName} {mentor.lastName} - {mentor.email} - {mentor.mobile}</span>
                           <Button
                             variant="ghost"
                             size="sm"

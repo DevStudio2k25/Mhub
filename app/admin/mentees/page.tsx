@@ -7,17 +7,18 @@ import { useAuth } from "@/contexts/auth-context"
 import DashboardLayout from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Plus, Trash2, Users, Edit, Eye, UserPlus, Download, Upload, FileText, Users2, Check, X, AlertCircle } from "lucide-react"
+import { Plus, Trash2, Users, Edit, Eye, UserPlus, Download, Upload, FileText, Users2, Check, X, AlertCircle, Filter, Search } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
+import { Checkbox } from "@/components/ui/checkbox"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 
 interface ClassInfo {
   id: string
@@ -40,7 +41,6 @@ interface Mentee {
   lastName: string
   middleName?: string
   email: string
-  password: string
   role: string
   enrollmentNo: string
   registrationNo: string
@@ -76,7 +76,6 @@ interface CsvMenteeData {
   assignedMentorName: string
   classId?: string
   assignedMentorId?: string
-  password?: string
   isValid?: boolean
   errors?: string[]
 }
@@ -89,6 +88,19 @@ export default function AdminMentees() {
   const [mentors, setMentors] = useState<MentorInfo[]>([])
   const [loading, setLoading] = useState(true)
 
+  // Search and filter states
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filteredMentees, setFilteredMentees] = useState<Mentee[]>([])
+  const [classFilter, setClassFilter] = useState("all")
+  const [mentorFilter, setMentorFilter] = useState("all")
+
+  // Export states
+  const [exportDialog, setExportDialog] = useState(false)
+  const [selectedFields, setSelectedFields] = useState<string[]>([
+    'firstName', 'lastName', 'email', 'enrollmentNo', 'className', 'assignedMentorName'
+  ])
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'excel'>('csv')
+
   // Single mentee creation
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
@@ -98,7 +110,6 @@ export default function AdminMentees() {
     lastName: "",
     middleName: "",
     email: "",
-    password: generateRandomPassword(),
     role: "mentee",
     enrollmentNo: "",
     registrationNo: "",
@@ -158,7 +169,6 @@ export default function AdminMentees() {
             lastName: data.lastName || "",
             middleName: data.middleName || "",
             email: data.email || "",
-            password: data.password || "",
             role: data.role || "mentee",
             enrollmentNo: data.enrollmentNo || "",
             registrationNo: data.registrationNo || "",
@@ -225,6 +235,35 @@ export default function AdminMentees() {
       fetchData()
     }
   }, [userData, toast])
+
+  // Search and filter logic
+  useEffect(() => {
+    let filtered = mentees
+
+    // Search filter
+    if (searchQuery) {
+      filtered = filtered.filter(mentee =>
+        `${mentee.firstName} ${mentee.middleName} ${mentee.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        mentee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        mentee.enrollmentNo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        mentee.className.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    }
+
+    // Class filter
+    if (classFilter !== "all") {
+      filtered = filtered.filter(mentee => mentee.classId === classFilter)
+    }
+
+    // Mentor filter
+    if (mentorFilter === "assigned") {
+      filtered = filtered.filter(mentee => mentee.assignedMentorName)
+    } else if (mentorFilter === "unassigned") {
+      filtered = filtered.filter(mentee => !mentee.assignedMentorName)
+    }
+
+    setFilteredMentees(filtered)
+  }, [mentees, searchQuery, classFilter, mentorFilter])
 
   // Handle CSV file upload and parsing
   const handleCsvUpload = async (file: File) => {
@@ -311,7 +350,6 @@ export default function AdminMentees() {
           ...menteeData,
           classId: foundClass?.id || "",
           assignedMentorId: foundMentor?.id || "",
-          password: generateRandomPassword(),
           isValid: rowErrors.length === 0,
           errors: rowErrors
         }
@@ -355,7 +393,7 @@ export default function AdminMentees() {
 
   // Handle single mentee creation via API
   const handleCreateSingleMentee = async () => {
-    if (!newMentee.firstName || !newMentee.lastName || !newMentee.email || !newMentee.password ||
+    if (!newMentee.firstName || !newMentee.lastName || !newMentee.email ||
       !newMentee.enrollmentNo || !newMentee.registrationNo || !newMentee.parentsName ||
       !newMentee.parentsContact || !newMentee.classId || !newMentee.admissionBatch ||
       !newMentee.classRollNo || !newMentee.dob) {
@@ -384,7 +422,6 @@ export default function AdminMentees() {
         lastName: newMentee.lastName,
         middleName: newMentee.middleName || "",
         email: newMentee.email,
-        password: newMentee.password,
         enrollmentNo: newMentee.enrollmentNo,
         registrationNo: newMentee.registrationNo,
         parentsName: newMentee.parentsName,
@@ -431,7 +468,6 @@ export default function AdminMentees() {
         lastName: newMentee.lastName,
         middleName: newMentee.middleName || "",
         email: newMentee.email,
-        password: newMentee.password,
         role: "mentee",
         enrollmentNo: newMentee.enrollmentNo,
         registrationNo: newMentee.registrationNo,
@@ -455,7 +491,6 @@ export default function AdminMentees() {
         lastName: "",
         middleName: "",
         email: "",
-        password: generateRandomPassword(),
         role: "mentee",
         enrollmentNo: "",
         registrationNo: "",
@@ -518,7 +553,6 @@ export default function AdminMentees() {
         lastName: mentee.lastName,
         middleName: mentee.middleName || "",
         email: mentee.email,
-        password: mentee.password!,
         enrollmentNo: mentee.enrollmentNo,
         registrationNo: mentee.registrationNo,
         parentsName: mentee.parentsName,
@@ -566,7 +600,6 @@ export default function AdminMentees() {
           lastName: originalData?.lastName || "",
           middleName: originalData?.middleName || "",
           email: createdMentee.email,
-          password: originalData?.password || "",
           role: "mentee",
           enrollmentNo: originalData?.enrollmentNo || "",
           registrationNo: originalData?.registrationNo || "",
@@ -646,90 +679,6 @@ export default function AdminMentees() {
     }
   }
 
-  // Export mentees data
-  const exportMentees = (format: 'csv' | 'excel') => {
-    if (mentees.length === 0) {
-      toast({
-        title: "No data to export",
-        description: "There are no mentees to export",
-        variant: "destructive"
-      })
-      return
-    }
-
-    const headers = [
-      'UID', 'First Name', 'Middle Name', 'Last Name', 'Full Name', 'Email',
-      'Enrollment No', 'Registration No', 'Parents Name', 'Parents Contact',
-      'Class ID', 'Class Name', 'Section', 'Stream', 'Admission Batch',
-      'Class Roll No', 'Date of Birth', 'Assigned Mentor ID', 'Assigned Mentor Name',
-      'Password', 'Role', 'Created At'
-    ]
-
-    const data = mentees.map(mentee => [
-      mentee.uid,
-      mentee.firstName,
-      mentee.middleName || '',
-      mentee.lastName,
-      `${mentee.firstName} ${mentee.middleName || ''} ${mentee.lastName}`.trim(),
-      mentee.email,
-      mentee.enrollmentNo,
-      mentee.registrationNo,
-      mentee.parentsName,
-      mentee.parentsContact,
-      mentee.classId,
-      mentee.className,
-      mentee.section,
-      mentee.stream,
-      mentee.admissionBatch,
-      mentee.classRollNo,
-      mentee.dob,
-      mentee.assignedMentorId || '',
-      mentee.assignedMentorName || '',
-      mentee.password || '',
-      mentee.role,
-      mentee.createdAt ? new Date(mentee.createdAt.seconds * 1000).toISOString() : ''
-    ])
-
-    if (format === 'csv') {
-      const csvContent = [
-        headers.join(','),
-        ...data.map(row => row.map(cell => `"${cell}"`).join(','))
-      ].join('\n')
-
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `mentees_export_${new Date().toISOString().split('T')[0]}.csv`
-      a.click()
-      window.URL.revokeObjectURL(url)
-
-      toast({
-        title: "Export successful",
-        description: `${mentees.length} mentees exported to CSV`,
-      })
-    } else if (format === 'excel') {
-      // Create Excel-compatible CSV with UTF-8 BOM
-      const csvContent = '\uFEFF' + [
-        headers.join('\t'),
-        ...data.map(row => row.join('\t'))
-      ].join('\n')
-
-      const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `mentees_export_${new Date().toISOString().split('T')[0]}.xlsx`
-      a.click()
-      window.URL.revokeObjectURL(url)
-
-      toast({
-        title: "Export successful",
-        description: `${mentees.length} mentees exported to Excel format`,
-      })
-    }
-  }
-
   // Download CSV template
   const downloadCsvTemplate = () => {
     const headers = [
@@ -754,19 +703,149 @@ export default function AdminMentees() {
     window.URL.revokeObjectURL(url)
   }
 
+  // Export functions
+  const handleExport = () => {
+    const dataToExport = filteredMentees.map(mentee => {
+      const exportData: any = {}
+
+      selectedFields.forEach(field => {
+        switch (field) {
+          case 'firstName':
+            exportData['First Name'] = mentee.firstName
+            break
+          case 'lastName':
+            exportData['Last Name'] = mentee.lastName
+            break
+          case 'middleName':
+            exportData['Middle Name'] = mentee.middleName || ''
+            break
+          case 'email':
+            exportData['Email'] = mentee.email
+            break
+          case 'enrollmentNo':
+            exportData['Enrollment No'] = mentee.enrollmentNo
+            break
+          case 'registrationNo':
+            exportData['Registration No'] = mentee.registrationNo
+            break
+          case 'className':
+            exportData['Class'] = mentee.className
+            break
+          case 'section':
+            exportData['Section'] = mentee.section
+            break
+          case 'stream':
+            exportData['Stream'] = mentee.stream
+            break
+          case 'classRollNo':
+            exportData['Roll No'] = mentee.classRollNo
+            break
+          case 'dob':
+            exportData['Date of Birth'] = mentee.dob
+            break
+          case 'parentsName':
+            exportData['Parent Name'] = mentee.parentsName
+            break
+          case 'parentsContact':
+            exportData['Parent Contact'] = mentee.parentsContact
+            break
+          case 'assignedMentorName':
+            exportData['Assigned Mentor'] = mentee.assignedMentorName || 'Not assigned'
+            break
+          case 'admissionBatch':
+            exportData['Admission Batch'] = mentee.admissionBatch
+            break
+
+          case 'uid':
+            exportData['User ID'] = mentee.uid
+            break
+        }
+      })
+      return exportData
+    })
+
+    if (exportFormat === 'csv') {
+      exportToCSV(dataToExport)
+    } else if (exportFormat === 'json') {
+      exportToJSON(dataToExport)
+    } else {
+      exportToExcel(dataToExport)
+    }
+
+    setExportDialog(false)
+    toast({
+      title: "Export Successful",
+      description: `${filteredMentees.length} mentee records exported as ${exportFormat.toUpperCase()}`,
+    })
+  }
+
+  const exportToCSV = (data: any[]) => {
+    if (data.length === 0) return
+
+    const headers = Object.keys(data[0])
+    const csvContent = [
+      headers.join(','),
+      ...data.map(row => headers.map(header => `"${row[header]}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `mentees_export_${new Date().toISOString().split('T')[0]}.csv`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const exportToJSON = (data: any[]) => {
+    const jsonContent = JSON.stringify(data, null, 2)
+    const blob = new Blob([jsonContent], { type: 'application/json;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `mentees_export_${new Date().toISOString().split('T')[0]}.json`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const exportToExcel = (data: any[]) => {
+    if (data.length === 0) return
+
+    const headers = Object.keys(data[0])
+    const csvContent = '\uFEFF' + [
+      headers.join('\t'),
+      ...data.map(row => headers.map(header => row[header]).join('\t'))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel;charset=utf-8;' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.setAttribute('href', url)
+    link.setAttribute('download', `mentees_export_${new Date().toISOString().split('T')[0]}.xlsx`)
+    link.style.visibility = 'hidden'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
   if (!userData || userData.role !== "admin") {
     return null
   }
 
   return (
     <DashboardLayout>
-      <div className="container mx-auto py-8 px-6">
-        <div className="flex justify-between items-center mb-8">
+      <div className="container mx-auto py-4 px-4 lg:px-6">
+        {/* Header */}
+        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center mb-6 gap-4">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Mentee Management</h1>
-            <p className="text-muted-foreground">Create and manage mentee accounts</p>
+            <h1 className="text-2xl lg:text-3xl font-bold mb-1">Mentee Management</h1>
+            <p className="text-muted-foreground text-sm lg:text-base">Create and manage mentee accounts</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="bg-blue-600 hover:bg-blue-700">
@@ -819,15 +898,7 @@ export default function AdminMentees() {
                         onChange={(e) => setNewMentee(prev => ({ ...prev, email: e.target.value }))}
                       />
                     </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="password">Password *</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        value={newMentee.password}
-                        onChange={(e) => setNewMentee(prev => ({ ...prev, password: e.target.value }))}
-                      />
-                    </div>
+
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -1129,7 +1200,64 @@ export default function AdminMentees() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+
+            {filteredMentees.length > 0 && (
+              <Button
+                variant="outline"
+                onClick={() => setExportDialog(true)}
+                className="border-blue-200 text-blue-700 hover:bg-blue-50"
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export Data
+              </Button>
+            )}
           </div>
+        </div>
+
+        {/* Search and Filter Section */}
+        <div className="mb-6">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col lg:flex-row gap-4">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Search by name, email, enrollment no, or class..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Select value={classFilter} onValueChange={setClassFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="Filter by class" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Classes</SelectItem>
+                      {classes.map((cls) => (
+                        <SelectItem key={cls.id} value={cls.id}>
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={mentorFilter} onValueChange={setMentorFilter}>
+                    <SelectTrigger className="w-full sm:w-[180px]">
+                      <SelectValue placeholder="Filter by mentor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Mentees</SelectItem>
+                      <SelectItem value="assigned">Assigned</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Progress Dialog */}
@@ -1169,163 +1297,197 @@ export default function AdminMentees() {
           </div>
         ) : (
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  All Mentees ({mentees.length})
-                </CardTitle>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => exportMentees('csv')}
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    Export CSV
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => exportMentees('excel')}
-                    className="flex items-center gap-2"
-                  >
-                    <FileText className="h-4 w-4" />
-                    Export Excel
-                  </Button>
+            <CardHeader className="pb-4">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                <div>
+                  <CardTitle className="flex items-center gap-2 text-lg lg:text-xl">
+                    <Users className="h-5 w-5" />
+                    All Mentees ({filteredMentees.length})
+                  </CardTitle>
+                  <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
+                    <span>Assigned: {filteredMentees.filter(m => m.assignedMentorName).length}</span>
+                    <span>Unassigned: {filteredMentees.filter(m => !m.assignedMentorName).length}</span>
+                  </div>
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
-              <div className="border rounded-lg overflow-hidden">
-                <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
-                  <Table>
-                    <TableHeader className="sticky top-0 bg-gray-50 z-10">
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-gray-50/50">
+                    <TableRow>
+                      <TableHead className="font-semibold text-left px-4 py-3">Name</TableHead>
+                      <TableHead className="font-semibold text-left px-4 py-3 hidden sm:table-cell">Email</TableHead>
+                      <TableHead className="font-semibold text-left px-4 py-3 hidden md:table-cell">Class</TableHead>
+                      <TableHead className="font-semibold text-left px-4 py-3 hidden lg:table-cell">Mentor</TableHead>
+                      <TableHead className="font-semibold text-center px-4 py-3 w-[120px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredMentees.length === 0 ? (
                       <TableRow>
-                        <TableHead className="min-w-[200px] font-semibold">Full Name</TableHead>
-                        <TableHead className="min-w-[250px] font-semibold">Email</TableHead>
-                        <TableHead className="min-w-[120px] font-semibold">Enrollment No</TableHead>
-                        <TableHead className="min-w-[120px] font-semibold">Registration No</TableHead>
-                        <TableHead className="min-w-[200px] font-semibold">Class</TableHead>
-                        <TableHead className="min-w-[100px] font-semibold">Section</TableHead>
-                        <TableHead className="min-w-[180px] font-semibold">Stream</TableHead>
-                        <TableHead className="min-w-[100px] font-semibold">Roll No</TableHead>
-                        <TableHead className="min-w-[120px] font-semibold">Admission Batch</TableHead>
-                        <TableHead className="min-w-[100px] font-semibold">DOB</TableHead>
-                        <TableHead className="min-w-[180px] font-semibold">Parents Name</TableHead>
-                        <TableHead className="min-w-[140px] font-semibold">Parents Contact</TableHead>
-                        <TableHead className="min-w-[180px] font-semibold">Assigned Mentor</TableHead>
-                        <TableHead className="min-w-[120px] font-semibold sticky right-0 bg-gray-50">Actions</TableHead>
+                        <TableCell colSpan={5} className="text-center py-12 text-gray-500">
+                          <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                          <p className="text-lg font-medium">No mentees found</p>
+                          <p className="text-sm">
+                            {searchQuery || classFilter !== "all" || mentorFilter !== "all"
+                              ? "Try adjusting your search or filters"
+                              : "Create your first mentee to get started"
+                            }
+                          </p>
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {mentees.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={14} className="text-center py-8 text-gray-500">
-                            <Users className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                            <p className="text-lg font-medium">No mentees found</p>
-                            <p className="text-sm">Create your first mentee to get started</p>
+                    ) : (
+                      filteredMentees.map((mentee, index) => (
+                        <TableRow key={mentee.uid} className="hover:bg-gray-50/50 transition-colors">
+                          <TableCell className="px-4 py-3">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-gray-900 text-sm lg:text-base">
+                                {mentee.firstName} {mentee.middleName} {mentee.lastName}
+                              </span>
+                              <div className="flex flex-col sm:hidden text-xs text-gray-500 mt-1 space-y-1">
+                                <span>{mentee.email}</span>
+                                <span>{mentee.className} • Roll: {mentee.classRollNo}</span>
+                                {mentee.assignedMentorName && (
+                                  <span className="text-green-600">Mentor: {mentee.assignedMentorName}</span>
+                                )}
+                              </div>
+                            </div>
                           </TableCell>
-                        </TableRow>
-                      ) : (
-                        mentees.map((mentee, index) => (
-                          <TableRow key={mentee.uid} className={index % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
-                            <TableCell className="font-medium">
+                          <TableCell className="px-4 py-3 hidden sm:table-cell">
+                            <div className="flex flex-col">
+                              <span className="text-sm">{mentee.email}</span>
+                              <span className="text-xs text-gray-500">{mentee.enrollmentNo}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 hidden md:table-cell">
+                            <div className="flex flex-col">
+                              <span className="font-medium text-sm">{mentee.className}</span>
+                              <span className="text-xs text-gray-500">{mentee.section} • {mentee.stream}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-4 py-3 hidden lg:table-cell">
+                            {mentee.assignedMentorName ? (
                               <div className="flex flex-col">
-                                <span className="font-semibold text-gray-900">
-                                  {mentee.firstName} {mentee.middleName} {mentee.lastName}
+                                <span className="text-sm font-medium text-green-700">
+                                  {mentee.assignedMentorName}
                                 </span>
-                                <span className="text-xs text-gray-500">ID: {mentee.uid.slice(0, 8)}...</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <span className="text-sm">{mentee.email}</span>
-                                <Badge variant="outline" className="w-fit text-xs">
-                                  {mentee.role}
+                                <Badge variant="outline" className="w-fit text-xs text-green-600 border-green-200 mt-1">
+                                  Assigned
                                 </Badge>
                               </div>
-                            </TableCell>
-                            <TableCell className="font-mono text-sm">{mentee.enrollmentNo}</TableCell>
-                            <TableCell className="font-mono text-sm">{mentee.registrationNo}</TableCell>
-                            <TableCell>
-                              <div className="flex flex-col">
-                                <span className="font-medium">{mentee.className}</span>
-                                <span className="text-xs text-gray-500">{mentee.stream}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant="secondary" className="text-xs">
-                                {mentee.section}
+                            ) : (
+                              <Badge variant="outline" className="text-xs text-gray-500">
+                                Not assigned
                               </Badge>
-                            </TableCell>
-                            <TableCell className="text-sm">{mentee.stream}</TableCell>
-                            <TableCell className="font-mono text-sm">{mentee.classRollNo}</TableCell>
-                            <TableCell className="text-sm">{mentee.admissionBatch}</TableCell>
-                            <TableCell className="text-sm">{mentee.dob}</TableCell>
-                            <TableCell className="text-sm">{mentee.parentsName}</TableCell>
-                            <TableCell className="text-sm">{mentee.parentsContact}</TableCell>
-                            <TableCell>
-                              {mentee.assignedMentorName ? (
-                                <div className="flex flex-col">
-                                  <span className="text-sm font-medium text-green-700">
-                                    {mentee.assignedMentorName}
-                                  </span>
-                                  <Badge variant="outline" className="w-fit text-xs text-green-600 border-green-200">
-                                    Assigned
-                                  </Badge>
-                                </div>
-                              ) : (
-                                <Badge variant="outline" className="text-xs text-gray-500">
-                                  Not assigned
-                                </Badge>
-                              )}
-                            </TableCell>
-                            <TableCell className="sticky right-0 bg-inherit">
-                              <div className="flex gap-1">
-                                <Button variant="outline" size="sm" title="View Details">
+                            )}
+                          </TableCell>
+                          <TableCell className="px-4 py-3">
+                            <div className="flex justify-center gap-1">
+                              <Link href={`/admin/view-profile/mentee/${mentee.uid}`}>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="View Profile">
                                   <Eye className="h-3 w-3" />
                                 </Button>
-                                <Button variant="outline" size="sm" title="Edit Mentee">
-                                  <Edit className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="text-red-600 hover:text-red-700 hover:border-red-300"
-                                  title="Delete Mentee"
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+                              </Link>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Edit Mentee">
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                title="Delete Mentee"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
               </div>
-
-              {mentees.length > 0 && (
-                <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-                  <div>
-                    Showing {mentees.length} mentee{mentees.length !== 1 ? 's' : ''}
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div>
-                      Assigned: {mentees.filter(m => m.assignedMentorName).length}
-                    </div>
-                    <div>
-                      Unassigned: {mentees.filter(m => !m.assignedMentorName).length}
-                    </div>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
         )}
+
+        {/* Export Dialog */}
+        <Dialog open={exportDialog} onOpenChange={setExportDialog}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Export Mentee Data</DialogTitle>
+              <DialogDescription>
+                Select the fields you want to export and choose the format.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6">
+              <div>
+                <Label className="text-base font-medium">Export Format</Label>
+                <Select value={exportFormat} onValueChange={(value: 'csv' | 'json' | 'excel') => setExportFormat(value)}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="csv">CSV (Comma Separated Values)</SelectItem>
+                    <SelectItem value="excel">Excel (XLSX)</SelectItem>
+                    <SelectItem value="json">JSON (JavaScript Object Notation)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="text-base font-medium">Select Fields to Export</Label>
+                <div className="grid grid-cols-2 gap-3 mt-3">
+                  {[
+                    { id: 'firstName', label: 'First Name' },
+                    { id: 'lastName', label: 'Last Name' },
+                    { id: 'middleName', label: 'Middle Name' },
+                    { id: 'email', label: 'Email' },
+                    { id: 'enrollmentNo', label: 'Enrollment No' },
+                    { id: 'registrationNo', label: 'Registration No' },
+                    { id: 'className', label: 'Class' },
+                    { id: 'section', label: 'Section' },
+                    { id: 'stream', label: 'Stream' },
+                    { id: 'classRollNo', label: 'Roll No' },
+                    { id: 'dob', label: 'Date of Birth' },
+                    { id: 'parentsName', label: 'Parent Name' },
+                    { id: 'parentsContact', label: 'Parent Contact' },
+                    { id: 'assignedMentorName', label: 'Assigned Mentor' },
+                    { id: 'admissionBatch', label: 'Admission Batch' },
+                    { id: 'uid', label: 'User ID' }
+                  ].map((field) => (
+                    <div key={field.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={field.id}
+                        checked={selectedFields.includes(field.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedFields([...selectedFields, field.id])
+                          } else {
+                            setSelectedFields(selectedFields.filter(f => f !== field.id))
+                          }
+                        }}
+                      />
+                      <Label htmlFor={field.id} className="text-sm font-normal cursor-pointer">
+                        {field.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setExportDialog(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleExport} disabled={selectedFields.length === 0}>
+                <Download className="h-4 w-4 mr-2" />
+                Export {filteredMentees.length} Records
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   )

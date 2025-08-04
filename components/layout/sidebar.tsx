@@ -134,10 +134,9 @@ function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) {
         <>
           {renderNavLink("/admin/dashboard", <BarChart size={20} />, "Dashboard")}
           {renderNavLink("/admin/classes", <School size={20} />, "Class Management")}
+          {renderNavLink("/admin/mentors", <UserCog size={20} />, "Mentor Management")}
           {renderNavLink("/admin/mentees", <GraduationCap size={20} />, "Mentee Management")}
           {renderNavLink("/admin/csv-template", <FileText size={20} />, "CSV Templates")}
-          {renderNavLink("/admin/users", <Users size={20} />, "Manage Users")}
-          {renderNavLink("/admin/manage-mentors", <UserCog size={20} />, "Manage Mentors")}
           {renderNavLink("/admin/profile", <ShieldCheck size={20} />, "My Profile")}
           <button
             onClick={handleLogout}
@@ -208,8 +207,10 @@ function Sidebar({ isMobileMenuOpen, setIsMobileMenuOpen }: SidebarProps) {
         return (
           <>
             {renderNavLink("/admin/dashboard", <BarChart size={20} />, "Dashboard")}
-            {renderNavLink("/admin/users", <Users size={20} />, "Manage Users")}
-            {renderNavLink("/admin/manage-mentors", <UserCog size={20} />, "Manage Mentors")}
+            {renderNavLink("/admin/classes", <School size={20} />, "Class Management")}
+            {renderNavLink("/admin/mentors", <UserCog size={20} />, "Mentor Management")}
+            {renderNavLink("/admin/mentees", <GraduationCap size={20} />, "Mentee Management")}
+            {renderNavLink("/admin/csv-template", <FileText size={20} />, "CSV Templates")}
             {renderNavLink("/admin/profile", <ShieldCheck size={20} />, "My Profile")}
             <button
               onClick={handleLogout}
