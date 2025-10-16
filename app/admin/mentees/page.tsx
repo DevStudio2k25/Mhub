@@ -41,6 +41,7 @@ interface Mentee {
   lastName: string
   middleName?: string
   email: string
+  password?: string
   role: string
   enrollmentNo: string
   registrationNo: string
@@ -97,7 +98,7 @@ export default function AdminMentees() {
   // Export states
   const [exportDialog, setExportDialog] = useState(false)
   const [selectedFields, setSelectedFields] = useState<string[]>([
-    'firstName', 'lastName', 'email', 'enrollmentNo', 'className', 'assignedMentorName'
+    'firstName', 'lastName', 'email', 'password', 'enrollmentNo', 'className', 'assignedMentorName'
   ])
   const [exportFormat, setExportFormat] = useState<'csv' | 'json' | 'excel'>('csv')
 
@@ -169,6 +170,7 @@ export default function AdminMentees() {
             lastName: data.lastName || "",
             middleName: data.middleName || "",
             email: data.email || "",
+            password: data.password || "",
             role: data.role || "mentee",
             enrollmentNo: data.enrollmentNo || "",
             registrationNo: data.registrationNo || "",
@@ -529,6 +531,7 @@ export default function AdminMentees() {
         lastName: newMentee.lastName,
         middleName: newMentee.middleName || "",
         email: newMentee.email,
+        password: generatedPassword,
         role: "mentee",
         enrollmentNo: newMentee.enrollmentNo,
         registrationNo: newMentee.registrationNo,
@@ -669,6 +672,7 @@ export default function AdminMentees() {
           lastName: originalData?.lastName || "",
           middleName: originalData?.middleName || "",
           email: createdMentee.email,
+          password: originalData?.password || "",
           role: "mentee",
           enrollmentNo: originalData?.enrollmentNo || "",
           registrationNo: originalData?.registrationNo || "",
@@ -794,6 +798,9 @@ export default function AdminMentees() {
             break
           case 'email':
             exportData['Email'] = mentee.email
+            break
+          case 'password':
+            exportData['Password'] = mentee.password || ''
             break
           case 'enrollmentNo':
             exportData['Enrollment No'] = mentee.enrollmentNo
@@ -1517,6 +1524,7 @@ export default function AdminMentees() {
                     { id: 'lastName', label: 'Last Name' },
                     { id: 'middleName', label: 'Middle Name' },
                     { id: 'email', label: 'Email' },
+                    { id: 'password', label: 'Password' },
                     { id: 'enrollmentNo', label: 'Enrollment No' },
                     { id: 'registrationNo', label: 'Registration No' },
                     { id: 'className', label: 'Class' },
