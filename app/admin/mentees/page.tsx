@@ -393,19 +393,55 @@ export default function AdminMentees() {
 
   // Handle single mentee creation via API
   const handleCreateSingleMentee = async () => {
-    if (!newMentee.firstName || !newMentee.lastName || !newMentee.email ||
-      !newMentee.enrollmentNo || !newMentee.registrationNo || !newMentee.parentsName ||
-      !newMentee.parentsContact || !newMentee.classId || !newMentee.admissionBatch ||
-      !newMentee.classRollNo || !newMentee.dob) {
-      setError("Please fill all required fields")
+    console.log("=== Form Validation Started ===")
+    console.log("Form Data:", {
+      firstName: newMentee.firstName,
+      lastName: newMentee.lastName,
+      middleName: newMentee.middleName,
+      email: newMentee.email,
+      enrollmentNo: newMentee.enrollmentNo,
+      registrationNo: newMentee.registrationNo,
+      parentsName: newMentee.parentsName,
+      parentsContact: newMentee.parentsContact,
+      classId: newMentee.classId,
+      admissionBatch: newMentee.admissionBatch,
+      classRollNo: newMentee.classRollNo,
+      dob: newMentee.dob,
+      assignedMentorId: newMentee.assignedMentorId
+    })
+
+    // Check each required field individually
+    const missingFields = []
+    if (!newMentee.firstName) missingFields.push("First Name")
+    if (!newMentee.lastName) missingFields.push("Last Name")
+    if (!newMentee.email) missingFields.push("Email")
+    if (!newMentee.enrollmentNo) missingFields.push("Enrollment No")
+    if (!newMentee.registrationNo) missingFields.push("Registration No")
+    if (!newMentee.parentsName) missingFields.push("Parents Name")
+    if (!newMentee.parentsContact) missingFields.push("Parents Contact")
+    if (!newMentee.classId) missingFields.push("Class")
+    if (!newMentee.admissionBatch) missingFields.push("Admission Batch")
+    if (!newMentee.classRollNo) missingFields.push("Class Roll No")
+    if (!newMentee.dob) missingFields.push("Date of Birth")
+
+    if (missingFields.length > 0) {
+      console.error("❌ Missing required fields:", missingFields)
+      setError(`Missing required fields: ${missingFields.join(", ")}`)
+      toast({
+        title: "Validation Error",
+        description: `Please fill: ${missingFields.join(", ")}`,
+        variant: "destructive"
+      })
       return
     }
 
     if (!adminPassword) {
+      console.error("❌ Admin password not provided")
       setError("Please enter your admin password to confirm")
       return
     }
 
+    console.log("✓ All required fields present")
     setError("")
     setIsCreating(true)
 
@@ -413,8 +449,14 @@ export default function AdminMentees() {
       // Get class details
       const selectedClass = classes.find(cls => cls.id === newMentee.classId)
       if (!selectedClass) {
+        console.error("❌ Selected class not found:", newMentee.classId)
         throw new Error("Selected class not found")
       }
+      console.log("✓ Class found:", selectedClass)
+
+      // Generate password
+      const generatedPassword = generateRandomPassword()
+      console.log("✓ Password generated (length):", generatedPassword.length)
 
       // Prepare mentee data for API
       const menteeData = {
@@ -422,6 +464,7 @@ export default function AdminMentees() {
         lastName: newMentee.lastName,
         middleName: newMentee.middleName || "",
         email: newMentee.email,
+        password: generatedPassword,
         enrollmentNo: newMentee.enrollmentNo,
         registrationNo: newMentee.registrationNo,
         parentsName: newMentee.parentsName,
@@ -437,7 +480,19 @@ export default function AdminMentees() {
         assignedMentorName: mentors.find(m => m.id === newMentee.assignedMentorId)?.name || ""
       }
 
+      console.log("=== Sending to API ===")
+      console.log("Mentee Data:", {
+        ...menteeData,
+        password: "[HIDDEN]"
+      })
+
       // Call API to create mentee
+      console.log("Calling API with payload:", {
+        menteesCount: 1,
+        adminUid: userData?.uid,
+        hasPassword: !!adminPassword
+      })
+
       const response = await fetch('/api/create-mentees', {
         method: 'POST',
         headers: {
@@ -450,13 +505,19 @@ export default function AdminMentees() {
         })
       })
 
+      console.log("API Response Status:", response.status, response.statusText)
+
       const result = await response.json()
 
+      console.log("API Response Body:", result)
+
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create mentee')
+        console.error("API Error:", result)
+        throw new Error(result.details || result.error || 'Failed to create mentee')
       }
 
       if (result.errors && result.errors.length > 0) {
+        console.error("Creation errors:", result.errors)
         throw new Error(result.errors[0].error)
       }
 
@@ -514,10 +575,14 @@ export default function AdminMentees() {
       })
     } catch (error: any) {
       console.error("Error creating mentee:", error)
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack
+      })
       setError(error.message || "Failed to create mentee")
       toast({
         title: "Error",
-        description: "Failed to create mentee",
+        description: error.message || "Failed to create mentee",
         variant: "destructive"
       })
     } finally {
@@ -553,6 +618,7 @@ export default function AdminMentees() {
         lastName: mentee.lastName,
         middleName: mentee.middleName || "",
         email: mentee.email,
+        password: generateRandomPassword(), // Generate password for each mentee
         enrollmentNo: mentee.enrollmentNo,
         registrationNo: mentee.registrationNo,
         parentsName: mentee.parentsName,
@@ -585,8 +651,11 @@ export default function AdminMentees() {
 
       const result = await response.json()
 
+      console.log("Bulk API Response:", result)
+
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create mentees')
+        console.error("Bulk API Error:", result)
+        throw new Error(result.details || result.error || 'Failed to create mentees')
       }
 
       setCurrentStep("Processing results...")
@@ -667,10 +736,14 @@ export default function AdminMentees() {
 
     } catch (error: any) {
       console.error("Error creating mentees:", error)
+      console.error("Error details:", {
+        message: error.message,
+        stack: error.stack
+      })
       setError(error.message || "Failed to create mentees")
       toast({
         title: "Error",
-        description: "Failed to create mentees",
+        description: error.message || "Failed to create mentees",
         variant: "destructive"
       })
     } finally {
